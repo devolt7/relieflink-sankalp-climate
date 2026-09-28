@@ -23,7 +23,7 @@ cp apps/camp-portal/.env.example apps/camp-portal/.env
 cp apps/donor-portal/.env.example apps/donor-portal/.env
 ```
 
-The camp portal also reads `VITE_DONOR_PORTAL_URL`; its example defaults to the local donor app URL. The frontend archives do not include Supabase migrations or credentials. The shared database must provide the `camps`, `needs`, and `claims` tables and the `process_claim` RPC used by the donor app. The impact and summary dashboards calculate metrics from camp and need rows; aggregate dashboard views are not required. Configure database permissions and realtime publication for the tables as required by the apps. Do not put a Supabase service-role key in either frontend environment file.
+The camp portal also reads `VITE_DONOR_PORTAL_URL`; its example points to the deployed donor app. Override it with `http://localhost:5173` only for local two-app development. Production builds ignore a localhost value and use the deployed donor URL as a safe fallback. The frontend archives do not include Supabase migrations or credentials. The shared database must provide the `camps`, `needs`, and `claims` tables and the `process_claim` RPC used by the donor app. The impact and summary dashboards calculate metrics from camp and need rows; aggregate dashboard views are not required. Configure database permissions and realtime publication for the tables as required by the apps. Do not put a Supabase service-role key in either frontend environment file.
 
 ## Climate Edition features
 

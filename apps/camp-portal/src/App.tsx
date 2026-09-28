@@ -9,9 +9,15 @@ import { PinGate } from './components/PinGate';
 import { CampPortal } from './components/CampPortal';
 import { Moon, Sun, HeartHandshake } from 'lucide-react';
 
-// Where the donor-facing app lives. Set VITE_DONOR_PORTAL_URL in .env once
-// it's deployed; falls back to the local dev port (5173) in the meantime.
-const DONOR_PORTAL_URL = import.meta.env.VITE_DONOR_PORTAL_URL || 'http://localhost:5173';
+// Keep local two-app development convenient, but never send a deployed camp
+// coordinator to localhost if Vercel still has an old environment value.
+const LOCAL_DONOR_PORTAL_URL = 'http://localhost:5173';
+const LIVE_DONOR_PORTAL_URL = 'https://relieflink-sankalp-climate.vercel.app';
+const configuredDonorPortalUrl = import.meta.env.VITE_DONOR_PORTAL_URL?.trim();
+const configuredUrlIsLocal = /^https?:\/\/(localhost|127(?:\.\d{1,3}){3})(:\d+)?(?:\/|$)/i.test(configuredDonorPortalUrl || '');
+const DONOR_PORTAL_URL = import.meta.env.PROD
+  ? (configuredDonorPortalUrl && !configuredUrlIsLocal ? configuredDonorPortalUrl : LIVE_DONOR_PORTAL_URL)
+  : (configuredDonorPortalUrl || LOCAL_DONOR_PORTAL_URL);
 
 export default function App() {
   // Stay signed in across a page refresh — cleared when the browser tab closes.

@@ -1,0 +1,14 @@
+{
+  "name": "relieflink-sankalp-climate",
+  "private": true,
+  "version": "1.0.0",
+  "description": "SANKALP by Satin Finserv · ReliefLink Climate Edition",
+  "scripts": {
+    "camp:install": "npm --prefix apps/camp-portal install",
+    "donor:install": "npm --prefix apps/donor-portal install",
+    "camp:dev": "npm --prefix apps/camp-portal run dev",
+    "donor:dev": "npm --prefix apps/donor-portal run dev",
+    "camp:build": "npm --prefix apps/camp-portal run build",
+    "donor:build": "npm --prefix apps/donor-portal run build"
+  }
+}

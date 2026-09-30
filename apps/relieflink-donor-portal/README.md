@@ -1,4 +1,4 @@
-# ReliefLink — Donor Portal & Public Dashboard (Person 3)
+# ReliefLink — Donor Portal & Public Dashboard
 
 Donor-facing map + claim flow, and the public stats dashboard, from the
 disaster-relief camp coordination project. Built standalone so it can be

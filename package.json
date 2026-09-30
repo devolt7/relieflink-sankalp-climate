@@ -9,6 +9,9 @@
     "camp:dev": "npm --prefix apps/camp-portal run dev",
     "donor:dev": "npm --prefix apps/donor-portal run dev",
     "camp:build": "npm --prefix apps/camp-portal run build",
-    "donor:build": "npm --prefix apps/donor-portal run build"
+    "donor:build": "npm --prefix apps/donor-portal run build",
+    "pledge:install": "npm --prefix apps/relieflink-donor-portal install",
+    "pledge:dev": "npm --prefix apps/relieflink-donor-portal run dev",
+    "pledge:build": "npm --prefix apps/relieflink-donor-portal run build"
   }
 }

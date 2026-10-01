@@ -5,6 +5,7 @@ import DonorPage from "./pages/DonorPage";
 import LandingPage from "./pages/LandingPage";
 import DashboardPage from "./pages/DashboardPage";
 import MyPledgesPage from "./pages/MyPledgesPage";
+import CampPortalPage from "./pages/CampPortalPage";
 import { DonorProvider } from "./context/DonorContext";
 import { useLiveDashboardStats } from "./hooks/useLiveData";
 
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="/donor" element={<DonorPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/my-pledges" element={<MyPledgesPage />} />
+          <Route path="/camp" element={<CampPortalPage />} />
         </Routes>
       </DonorProvider>
     </BrowserRouter>

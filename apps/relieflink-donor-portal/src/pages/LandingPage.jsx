@@ -31,12 +31,12 @@ export default function LandingPage() {
                 I am a Donor
               </Link>
 
-              <a
-                href="http://localhost:3000"
+              <Link
+                to="/camp"
                 className="rounded-lg border border-white/20 px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-white/10"
               >
                 I am a Camp
-              </a>
+              </Link>
 
               <a
                 href="#sankalp"

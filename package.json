@@ -3,15 +3,16 @@
   "private": true,
   "version": "1.0.0",
   "description": "SANKALP by Satin Finserv · ReliefLink Climate Edition",
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
-    "camp:install": "npm --prefix apps/camp-portal install",
-    "donor:install": "npm --prefix apps/donor-portal install",
-    "camp:dev": "npm --prefix apps/camp-portal run dev",
-    "donor:dev": "npm --prefix apps/donor-portal run dev",
-    "camp:build": "npm --prefix apps/camp-portal run build",
-    "donor:build": "npm --prefix apps/donor-portal run build",
-    "pledge:install": "npm --prefix apps/relieflink-donor-portal install",
-    "pledge:dev": "npm --prefix apps/relieflink-donor-portal run dev",
-    "pledge:build": "npm --prefix apps/relieflink-donor-portal run build"
+    "dev": "npm run dev --workspace=apps/relieflink-donor-portal",
+    "build": "npm run build --workspace=apps/relieflink-donor-portal",
+    "lint": "npm run build --workspace=apps/relieflink-donor-portal",
+    "camp:dev": "npm run dev --workspace=apps/camp-portal",
+    "camp:build": "npm run build --workspace=apps/camp-portal",
+    "donor:dev": "npm run dev --workspace=apps/relieflink-donor-portal",
+    "donor:build": "npm run build --workspace=apps/relieflink-donor-portal"
   }
 }

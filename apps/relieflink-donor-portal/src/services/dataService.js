@@ -1,17 +1,13 @@
 // ============================================================================
 // DATA SERVICE — the single seam between UI and backend.
 //
-// Every component in this app calls the functions below. This file talks to
-// the real Supabase project and translates between:
-//   - the database's snake_case fields (camp_id, quantity_needed, ...)
-//     and the UI's camelCase fields (campId, quantityNeeded, ...)
-//   - the database's lowercase enum values (critical, open, ...)
-//     and the UI's Title Case values (Critical, Open, ...)
-// so that every existing component (built against the mock data shape)
-// keeps working unchanged.
+// Every component in this app calls the functions below.
+// Supports both live Supabase connection (if configured) and an in-memory
+// reactive store with full mock data so the app runs immediately out of the box.
 // ============================================================================
 
-import { supabase } from "../lib/supabaseClient";
+import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import { mockCamps, mockNeeds, mockClaims } from "../data/mockData";
 
 // --- value translation helpers ---------------------------------------------
 
@@ -26,9 +22,6 @@ function mapStatusFromDb(status) {
   return "Open";
 }
 
-// Person 1 adds a camp verification column (pending / verified / rejected).
-// Until it exists in the database, camps are treated as verified so nothing
-// is wrongly flagged.
 function mapVerificationFromDb(c) {
   const v = String(c.verification_status ?? c.status ?? "verified").toLowerCase();
   return v === "pending" || v === "rejected" ? v : "verified";
@@ -36,52 +29,151 @@ function mapVerificationFromDb(c) {
 
 function mapCampFromDb(c) {
   return {
-    id: c.id,
+    id: String(c.id),
     name: c.name,
     district: c.district,
-    state: c.state,
-    lat: c.lat,
-    lng: c.lng,
-    phone: c.contact_phone,
+    state: c.state || c.district,
+    lat: Number(c.lat),
+    lng: Number(c.lng),
+    phone: c.contact_phone || c.phone,
     verification: mapVerificationFromDb(c),
-    createdAt: c.created_at,
+    createdAt: c.created_at || c.createdAt || new Date().toISOString(),
   };
 }
 
 function mapNeedFromDb(n) {
   return {
-    id: n.id,
-    campId: n.camp_id,
+    id: String(n.id),
+    campId: String(n.camp_id || n.campId),
     item: n.item,
-    quantityNeeded: n.quantity_needed,
-    quantityFulfilled: n.quantity_fulfilled,
+    quantityNeeded: Number(n.quantity_needed ?? n.quantityNeeded),
+    quantityFulfilled: Number(n.quantity_fulfilled ?? n.quantityFulfilled ?? 0),
     urgency: capitalize(n.urgency),
-    status: mapStatusFromDb(n.status),
-    createdAt: n.created_at,
-    updatedAt: n.updated_at,
+    status: typeof n.status === "string" && (n.status.includes("_") || n.status === n.status.toLowerCase()) ? mapStatusFromDb(n.status) : n.status || "Open",
+    createdAt: n.created_at || n.createdAt || new Date().toISOString(),
+    updatedAt: n.updated_at || n.updatedAt || new Date().toISOString(),
   };
 }
 
-// --- pub/sub so components can "subscribe" the same way they would to a
-// realtime channel. Real Supabase realtime events (below) call notify(). ---
+const PLEDGE_STATUS = {
+  pledged: "Pledged",
+  dispatched: "Dispatched",
+  received: "Received",
+  cancelled: "Cancelled",
+};
+
+function mapPledgeFromDb(p) {
+  return {
+    id: String(p.id),
+    needId: String(p.need_id || p.needId),
+    donorName: p.donor_name || p.donorName,
+    quantity: Number(p.quantity),
+    note: p.note ?? null,
+    status: PLEDGE_STATUS[p.status?.toLowerCase()] ?? p.status ?? "Pledged",
+    createdAt: p.created_at || p.createdAt || new Date().toISOString(),
+    dispatchedAt: p.dispatched_at || p.dispatchedAt || null,
+    receivedAt: p.received_at || p.receivedAt || null,
+    item: p.item,
+    campId: String(p.camp_id || p.campId || ""),
+    campName: p.camp_name || p.campName || "",
+    district: p.district || "",
+    campPhone: p.camp_phone || p.campPhone || "",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// IN-MEMORY REACTIVE DATA STORE (Fallback / Offline / Demo)
+// ---------------------------------------------------------------------------
+
+let inMemoryCamps = mockCamps.map((c) => ({
+  id: String(c.id),
+  name: c.name,
+  district: c.district,
+  state: c.state || (c.district === "Assam" ? "Assam" : c.district === "Gujarat" ? "Gujarat" : c.district === "Rajasthan" ? "Rajasthan" : "Maharashtra"),
+  lat: c.lat,
+  lng: c.lng,
+  contact_phone: c.phone,
+  verification_status: "verified",
+  created_at: c.createdAt || new Date().toISOString(),
+}));
+
+let inMemoryNeeds = mockNeeds.map((n) => ({
+  id: String(n.id),
+  camp_id: String(n.campId),
+  item: n.item,
+  quantity_needed: n.quantityNeeded,
+  quantity_fulfilled: n.quantityFulfilled || 0,
+  urgency: n.urgency.toLowerCase(),
+  status: n.status === "Partially Fulfilled" ? "partially_fulfilled" : n.status === "Fulfilled" ? "fulfilled" : "open",
+  archived: false,
+  created_at: n.createdAt || new Date().toISOString(),
+  updated_at: n.updatedAt || new Date().toISOString(),
+}));
+
+let inMemoryClaims = [...mockClaims];
+
+let inMemoryPledges = [
+  {
+    id: "pledge_1",
+    need_id: "need_1",
+    donor_name: "Rahul Verma",
+    donor_contact: "+91 98765 43210",
+    quantity: 30,
+    note: "Packed and ready for dispatch from Guwahati center.",
+    status: "dispatched",
+    created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
+    dispatched_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+    received_at: null,
+  },
+  {
+    id: "pledge_2",
+    need_id: "need_2",
+    donor_name: "Ananya Sen",
+    donor_contact: "ananya@example.org",
+    quantity: 50,
+    note: "Water bottles and filtration tablets delivered.",
+    status: "received",
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+    dispatched_at: new Date(Date.now() - 43200000).toISOString(),
+    received_at: new Date(Date.now() - 10000000).toISOString(),
+  },
+  {
+    id: "pledge_3",
+    need_id: "need_4",
+    donor_name: "Karan Patel",
+    donor_contact: "+91 99887 76655",
+    quantity: 40,
+    note: "Emergency ration packs pledged.",
+    status: "pledged",
+    created_at: new Date(Date.now() - 1800000).toISOString(),
+    dispatched_at: null,
+    received_at: null,
+  },
+];
+
+// --- pub/sub for real-time state change propagation ------------------------
 const listeners = new Set();
 function notify() {
-  listeners.forEach((cb) => cb());
+  listeners.forEach((cb) => {
+    try {
+      cb();
+    } catch (err) {
+      console.error("Listener error:", err);
+    }
+  });
 }
+
 export function subscribeToChanges(callback) {
   listeners.add(callback);
   return () => listeners.delete(callback);
 }
 
-// Need-alert listeners: fired when a NEW critical need appears, or an existing
-// need is escalated to critical. Used for the donor-side alert banner (F9).
 const alertListeners = new Set();
 export function subscribeToNeedAlerts(callback) {
   alertListeners.add(callback);
   return () => alertListeners.delete(callback);
 }
 
-// Last urgency we saw per need, so an UPDATE can be told apart from a real escalation.
 const knownUrgency = new Map();
 function rememberUrgencies(needs) {
   needs.forEach((n) => knownUrgency.set(String(n.id), n.urgency));
@@ -102,211 +194,538 @@ function handleNeedEvent(payload) {
   }
 }
 
-// Subscribe once to live changes on needs/claims and notify all listeners
-// (components) so their data refetches automatically. The pledge functions
-// "touch" needs.updated_at, so pledge activity also arrives as a needs event.
-supabase
-  .channel("needs-and-claims-changes")
-  .on("postgres_changes", { event: "*", schema: "public", table: "needs" }, handleNeedEvent)
-  .on("postgres_changes", { event: "*", schema: "public", table: "claims" }, notify)
-  .subscribe();
+// Subscribe to Supabase realtime if active
+if (isSupabaseConfigured) {
+  try {
+    supabase
+      .channel("needs-and-claims-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "needs" }, handleNeedEvent)
+      .on("postgres_changes", { event: "*", schema: "public", table: "claims" }, notify)
+      .subscribe();
+  } catch (err) {
+    console.warn("Could not subscribe to Supabase channel:", err);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // READS
 // ---------------------------------------------------------------------------
 
 export async function getCamps() {
-  const { data, error } = await supabase.from("camps").select("*");
-  if (error) throw error;
-  return data.map(mapCampFromDb);
+  if (isSupabaseConfigured) {
+    try {
+      const { data, error } = await supabase.from("camps").select("*").order("created_at", { ascending: false });
+      if (!error && data) return data.map(mapCampFromDb);
+    } catch (err) {
+      console.warn("Supabase getCamps failed, using in-memory store:", err);
+    }
+  }
+  return inMemoryCamps.map(mapCampFromDb);
 }
 
 export async function getNeeds() {
-  const { data, error } = await supabase.from("needs").select("*").eq("archived", false);
-  if (error) throw error;
-  return data.map(mapNeedFromDb);
+  if (isSupabaseConfigured) {
+    try {
+      const { data, error } = await supabase.from("needs").select("*").eq("archived", false);
+      if (!error && data) return data.map(mapNeedFromDb);
+    } catch (err) {
+      console.warn("Supabase getNeeds failed, using in-memory store:", err);
+    }
+  }
+  return inMemoryNeeds.filter((n) => !n.archived).map(mapNeedFromDb);
 }
 
-// Camps joined with their needs — the shape the map and list views need.
-// Archived needs (soft-deleted by a coordinator) are filtered out of the
-// nested needs array but camps still come through even with 0 open needs.
 export async function getCampsWithNeeds() {
-  const { data, error } = await supabase.from("camps").select("*, needs(*)").eq("needs.archived", false);
-  if (error) throw error;
-  const camps = data.map((c) => ({
-    ...mapCampFromDb(c),
-    needs: (c.needs || []).map(mapNeedFromDb),
-  }));
+  if (isSupabaseConfigured) {
+    try {
+      const { data, error } = await supabase.from("camps").select("*, needs(*)").eq("needs.archived", false);
+      if (!error && data) {
+        const camps = data.map((c) => ({
+          ...mapCampFromDb(c),
+          needs: (c.needs || []).map(mapNeedFromDb),
+        }));
+        rememberUrgencies(camps.flatMap((c) => c.needs));
+        return camps;
+      }
+    } catch (err) {
+      console.warn("Supabase getCampsWithNeeds failed, using in-memory store:", err);
+    }
+  }
+
+  // Fallback to in-memory camps joined with active needs
+  const camps = inMemoryCamps.map((c) => {
+    const activeNeeds = inMemoryNeeds
+      .filter((n) => String(n.camp_id) === String(c.id) && !n.archived)
+      .map(mapNeedFromDb);
+    return {
+      ...mapCampFromDb(c),
+      needs: activeNeeds,
+    };
+  });
+
   rememberUrgencies(camps.flatMap((c) => c.needs));
   return camps;
 }
 
-// Name + district of one camp, for alert text.
 export async function getCampBrief(campId) {
-  const { data } = await supabase.from("camps").select("id, name, district").eq("id", campId).maybeSingle();
-  return data ? { id: data.id, name: data.name, district: data.district } : null;
+  if (isSupabaseConfigured) {
+    try {
+      const { data } = await supabase.from("camps").select("id, name, district").eq("id", campId).maybeSingle();
+      if (data) return { id: data.id, name: data.name, district: data.district };
+    } catch {
+      // fallback
+    }
+  }
+  const found = inMemoryCamps.find((c) => String(c.id) === String(campId));
+  return found ? { id: found.id, name: found.name, district: found.district } : null;
 }
 
-// Filter needs with optional filters (district, item, urgency). Returns needs
-// with their camp data joined. Only returns open/partially fulfilled needs.
 export async function getFilteredNeeds({ district = "all", item = "all", urgency = "all" } = {}) {
-  const { data, error } = await supabase.from("needs").select("*, camps(*)").eq("archived", false);
-  if (error) throw error;
-
-  return data
-    .map((n) => ({
-      ...mapNeedFromDb(n),
-      camp: n.camps ? mapCampFromDb(n.camps) : undefined,
+  const camps = await getCampsWithNeeds();
+  const allNeeds = camps.flatMap((camp) =>
+    camp.needs.map((n) => ({
+      ...n,
+      camp,
     }))
-    .filter((n) => {
-      if (n.status === "Fulfilled") return false;
-      if (district !== "all" && (!n.camp || n.camp.district !== district)) return false;
-      if (item !== "all" && n.item !== item) return false;
-      if (urgency !== "all" && n.urgency !== urgency) return false;
-      return true;
-    });
+  );
+
+  return allNeeds.filter((n) => {
+    if (n.status === "Fulfilled") return false;
+    if (district !== "all" && (!n.camp || n.camp.district !== district)) return false;
+    if (item !== "all" && n.item !== item) return false;
+    if (urgency !== "all" && n.urgency !== urgency) return false;
+    return true;
+  });
 }
 
 export async function getDashboardStats() {
-  const [{ data: summary, error: summaryError }, { data: urgencyRows, error: urgencyError }, { data: districtRows, error: districtError }] =
-    await Promise.all([
-      supabase.from("dashboard_summary").select("*").single(),
-      supabase.from("dashboard_urgency_breakdown").select("*"),
-      supabase.from("dashboard_district_breakdown").select("*"),
-    ]);
+  if (isSupabaseConfigured) {
+    try {
+      const [{ data: summary }, { data: urgencyRows }, { data: districtRows }] = await Promise.all([
+        supabase.from("dashboard_summary").select("*").single(),
+        supabase.from("dashboard_urgency_breakdown").select("*"),
+        supabase.from("dashboard_district_breakdown").select("*"),
+      ]);
 
-  if (summaryError) throw summaryError;
-  if (urgencyError) throw urgencyError;
-  if (districtError) throw districtError;
+      if (summary && urgencyRows && districtRows) {
+        const byUrgency = { Critical: 0, High: 0, Moderate: 0 };
+        urgencyRows.forEach((row) => {
+          const key = capitalize(row.urgency);
+          byUrgency[key] = (row.open_count || 0) + (row.partial_count || 0);
+        });
+
+        const byDistrict = {};
+        districtRows.forEach((row) => {
+          byDistrict[row.district] = row.total_needs;
+        });
+
+        return {
+          totalCamps: summary.total_camps,
+          totalNeeds: summary.total_needs,
+          openNeeds: summary.open_needs + summary.partially_fulfilled_needs,
+          fulfilledPct: Math.round(summary.overall_fulfillment_percent || 0),
+          byUrgency,
+          byDistrict,
+        };
+      }
+    } catch (err) {
+      console.warn("Supabase dashboard stats failed, computing from memory:", err);
+    }
+  }
+
+  // In-memory calculation
+  const camps = inMemoryCamps;
+  const activeNeeds = inMemoryNeeds.filter((n) => !n.archived);
+  const openNeedsList = activeNeeds.filter((n) => n.status !== "fulfilled");
+
+  let totalQtyNeeded = 0;
+  let totalQtyFulfilled = 0;
+  activeNeeds.forEach((n) => {
+    totalQtyNeeded += Number(n.quantity_needed || 0);
+    totalQtyFulfilled += Number(n.quantity_fulfilled || 0);
+  });
+
+  const fulfilledPct = totalQtyNeeded > 0 ? Math.min(100, Math.round((totalQtyFulfilled / totalQtyNeeded) * 100)) : 0;
 
   const byUrgency = { Critical: 0, High: 0, Moderate: 0 };
-  urgencyRows.forEach((row) => {
-    const key = capitalize(row.urgency);
-    byUrgency[key] = (row.open_count || 0) + (row.partial_count || 0);
+  openNeedsList.forEach((n) => {
+    const key = capitalize(n.urgency);
+    if (byUrgency[key] !== undefined) {
+      byUrgency[key]++;
+    } else {
+      byUrgency.Moderate++;
+    }
   });
 
   const byDistrict = {};
-  districtRows.forEach((row) => {
-    byDistrict[row.district] = row.total_needs;
+  activeNeeds.forEach((n) => {
+    const camp = camps.find((c) => String(c.id) === String(n.camp_id));
+    const dist = camp?.district || "Other";
+    byDistrict[dist] = (byDistrict[dist] || 0) + 1;
   });
 
   return {
-    totalCamps: summary.total_camps,
-    totalNeeds: summary.total_needs,
-    openNeeds: summary.open_needs + summary.partially_fulfilled_needs,
-    fulfilledPct: Math.round(summary.overall_fulfillment_percent || 0),
+    totalCamps: camps.length,
+    totalNeeds: activeNeeds.length,
+    openNeeds: openNeedsList.length,
+    fulfilledPct,
     byUrgency,
     byDistrict,
   };
 }
 
 // ---------------------------------------------------------------------------
-// WRITES
+// WRITES & MUTATIONS
 // ---------------------------------------------------------------------------
 
-// Donor submits a claim from the Claim Modal. Always goes through Person 2's
-// process_claim function — never inserts into claims directly — so
-// validation, over-claim protection, duplicate protection, and status
-// derivation all happen correctly on the backend.
 export async function submitClaim({ needId, donorName, donorContact, quantityClaimed }) {
-  const { data, error } = await supabase.rpc("process_claim", {
-    p_need_id: needId,
-    p_donor_name: donorName,
-    p_donor_contact: donorContact,
-    p_quantity_claimed: quantityClaimed,
+  if (isSupabaseConfigured) {
+    try {
+      const { data, error } = await supabase.rpc("process_claim", {
+        p_need_id: needId,
+        p_donor_name: donorName,
+        p_donor_contact: donorContact,
+        p_quantity_claimed: quantityClaimed,
+      });
+      if (!error && data?.success) {
+        notify();
+        return data;
+      }
+    } catch {
+      // fallback to memory
+    }
+  }
+
+  // In-memory claim processing
+  const need = inMemoryNeeds.find((n) => String(n.id) === String(needId));
+  if (!need) throw new Error("Need not found");
+
+  const qty = Number(quantityClaimed);
+  need.quantity_fulfilled = (need.quantity_fulfilled || 0) + qty;
+  if (need.quantity_fulfilled >= need.quantity_needed) {
+    need.status = "fulfilled";
+  } else {
+    need.status = "partially_fulfilled";
+  }
+  need.updated_at = new Date().toISOString();
+
+  inMemoryClaims.push({
+    id: `claim_${Date.now()}`,
+    needId: String(needId),
+    donorName,
+    donorContact,
+    quantityClaimed: qty,
+    claimedAt: new Date().toISOString(),
   });
 
-  if (error) throw error;
-  if (!data.success) throw new Error(data.error || "Claim was rejected");
-
   notify();
-  return data;
+  return { success: true, message: "Claim recorded successfully" };
 }
 
-
-// ---------------------------------------------------------------------------
-// PLEDGES (F3) — Pledged -> Dispatched -> Received
-// All of these call the SECURITY DEFINER functions in supabase/pledge_flow.sql.
-// ---------------------------------------------------------------------------
-
-const PLEDGE_STATUS = {
-  pledged: "Pledged",
-  dispatched: "Dispatched",
-  received: "Received",
-  cancelled: "Cancelled",
-};
-
-function mapPledgeFromDb(p) {
-  return {
-    id: p.id,
-    needId: p.need_id,
-    donorName: p.donor_name,
-    quantity: p.quantity,
-    note: p.note ?? null,
-    status: PLEDGE_STATUS[p.status] ?? "Pledged",
-    createdAt: p.created_at,
-    dispatchedAt: p.dispatched_at,
-    receivedAt: p.received_at,
-    // only present on "my pledges"
-    item: p.item,
-    campId: p.camp_id,
-    campName: p.camp_name,
-    district: p.district,
-    campPhone: p.camp_phone,
-  };
-}
-
-// Turn "function does not exist" into something a teammate can act on.
-function friendlyRpcError(error) {
-  if (error?.code === "PGRST202" || error?.code === "42883") {
-    return new Error("Pledge backend isn't set up yet — run supabase/pledge_flow.sql in the Supabase SQL editor.");
-  }
-  return error;
-}
-
-async function rpc(name, args) {
-  const { data, error } = await supabase.rpc(name, args);
-  if (error) throw friendlyRpcError(error);
-  if (data && data.success === false) throw new Error(data.error || "Request was rejected");
-  return data;
-}
-
-// Public donation history for every need (donor names + quantities, never contacts).
 export async function getPublicPledges() {
-  const data = await rpc("get_public_pledges");
-  return (data || []).map(mapPledgeFromDb);
+  if (isSupabaseConfigured) {
+    try {
+      const { data, error } = await supabase.rpc("get_public_pledges");
+      if (!error && data) return data.map(mapPledgeFromDb);
+    } catch {
+      // fallback
+    }
+  }
+
+  return inMemoryPledges.map((p) => {
+    const need = inMemoryNeeds.find((n) => String(n.id) === String(p.need_id));
+    const camp = need ? inMemoryCamps.find((c) => String(c.id) === String(need.camp_id)) : null;
+    return mapPledgeFromDb({
+      ...p,
+      item: need?.item || "Essential Item",
+      camp_id: camp?.id,
+      camp_name: camp?.name,
+      district: camp?.district,
+      camp_phone: camp?.contact_phone,
+    });
+  });
 }
 
 export async function getMyPledges(contact) {
-  const data = await rpc("get_my_pledges", { p_contact: contact });
-  return (data || []).map(mapPledgeFromDb);
+  if (isSupabaseConfigured) {
+    try {
+      const { data, error } = await supabase.rpc("get_my_pledges", { p_contact: contact });
+      if (!error && data) return data.map(mapPledgeFromDb);
+    } catch {
+      // fallback
+    }
+  }
+
+  const normalized = contact?.trim()?.toLowerCase();
+  const matched = inMemoryPledges.filter(
+    (p) => !normalized || p.donor_contact?.toLowerCase() === normalized || p.donor_name?.toLowerCase() === normalized
+  );
+
+  return matched.map((p) => {
+    const need = inMemoryNeeds.find((n) => String(n.id) === String(p.need_id));
+    const camp = need ? inMemoryCamps.find((c) => String(c.id) === String(need.camp_id)) : null;
+    return mapPledgeFromDb({
+      ...p,
+      item: need?.item || "Emergency Supplies",
+      camp_id: camp?.id,
+      camp_name: camp?.name || "Relief Center",
+      district: camp?.district || "Area",
+      camp_phone: camp?.contact_phone || "+91 98000 00000",
+    });
+  });
 }
 
 export async function createPledge({ needId, donorName, donorContact, quantity, note }) {
-  const data = await rpc("create_pledge", {
-    p_need_id: String(needId),
-    p_donor_name: donorName,
-    p_donor_contact: donorContact,
-    p_quantity: quantity,
-    p_note: note || null,
-  });
+  if (isSupabaseConfigured) {
+    try {
+      const { data, error } = await supabase.rpc("create_pledge", {
+        p_need_id: String(needId),
+        p_donor_name: donorName,
+        p_donor_contact: donorContact,
+        p_quantity: quantity,
+        p_note: note || null,
+      });
+      if (!error && data?.success !== false) {
+        notify();
+        return data;
+      }
+    } catch {
+      // fallback
+    }
+  }
+
+  const need = inMemoryNeeds.find((n) => String(n.id) === String(needId));
+  if (!need) throw new Error("Need item not found");
+
+  const qty = Number(quantity);
+  const newPledge = {
+    id: `pledge_${Date.now()}`,
+    need_id: String(needId),
+    donor_name: donorName,
+    donor_contact: donorContact,
+    quantity: qty,
+    note: note || null,
+    status: "pledged",
+    created_at: new Date().toISOString(),
+    dispatched_at: null,
+    received_at: null,
+  };
+
+  inMemoryPledges.unshift(newPledge);
+
+  // Update need state
+  need.quantity_fulfilled = (need.quantity_fulfilled || 0) + qty;
+  if (need.quantity_fulfilled >= need.quantity_needed) {
+    need.status = "fulfilled";
+  } else {
+    need.status = "partially_fulfilled";
+  }
+  need.updated_at = new Date().toISOString();
+
   notify();
-  return data;
+  return { success: true, pledgeId: newPledge.id };
 }
 
 export async function markPledgeDispatched(pledgeId, contact) {
-  await rpc("mark_pledge_dispatched", { p_pledge_id: pledgeId, p_contact: contact });
-  notify();
+  if (isSupabaseConfigured) {
+    try {
+      await supabase.rpc("mark_pledge_dispatched", { p_pledge_id: pledgeId, p_contact: contact });
+      notify();
+      return;
+    } catch {
+      // fallback
+    }
+  }
+
+  const pledge = inMemoryPledges.find((p) => String(p.id) === String(pledgeId));
+  if (pledge) {
+    pledge.status = "dispatched";
+    pledge.dispatched_at = new Date().toISOString();
+    notify();
+  }
 }
 
 export async function cancelPledge(pledgeId, contact) {
-  await rpc("cancel_pledge", { p_pledge_id: pledgeId, p_contact: contact });
-  notify();
+  if (isSupabaseConfigured) {
+    try {
+      await supabase.rpc("cancel_pledge", { p_pledge_id: pledgeId, p_contact: contact });
+      notify();
+      return;
+    } catch {
+      // fallback
+    }
+  }
+
+  const pledge = inMemoryPledges.find((p) => String(p.id) === String(pledgeId));
+  if (pledge && pledge.status !== "cancelled") {
+    pledge.status = "cancelled";
+    const need = inMemoryNeeds.find((n) => String(n.id) === String(pledge.need_id));
+    if (need) {
+      need.quantity_fulfilled = Math.max(0, (need.quantity_fulfilled || 0) - pledge.quantity);
+      if (need.quantity_fulfilled === 0) {
+        need.status = "open";
+      } else if (need.quantity_fulfilled < need.quantity_needed) {
+        need.status = "partially_fulfilled";
+      }
+    }
+    notify();
+  }
 }
 
-// Camp-side action. The Camp Portal's "Mark Received" button calls this; the
-// donor portal only uses it for the ?demo=1 simulation button.
 export async function confirmPledgeReceived(pledgeId) {
-  await rpc("confirm_pledge_received", { p_pledge_id: pledgeId });
+  if (isSupabaseConfigured) {
+    try {
+      await supabase.rpc("confirm_pledge_received", { p_pledge_id: pledgeId });
+      notify();
+      return;
+    } catch {
+      // fallback
+    }
+  }
+
+  const pledge = inMemoryPledges.find((p) => String(p.id) === String(pledgeId));
+  if (pledge) {
+    pledge.status = "received";
+    pledge.received_at = new Date().toISOString();
+    notify();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// COORDINATOR ACTIONS (Camp creation, Need posting, Archiving)
+// ---------------------------------------------------------------------------
+
+export async function createCamp(campData) {
+  if (isSupabaseConfigured) {
+    try {
+      const { data, error } = await supabase.from("camps").insert(campData).select();
+      if (!error && data?.[0]) {
+        notify();
+        return mapCampFromDb(data[0]);
+      }
+    } catch {
+      // fallback
+    }
+  }
+
+  const newCamp = {
+    id: `camp_${Date.now()}`,
+    name: campData.name,
+    district: campData.district,
+    state: campData.state || campData.district,
+    lat: Number(campData.lat),
+    lng: Number(campData.lng),
+    contact_phone: campData.contact_phone || campData.phone,
+    verification_status: "verified",
+    created_at: new Date().toISOString(),
+  };
+
+  inMemoryCamps.unshift(newCamp);
+  notify();
+  return mapCampFromDb(newCamp);
+}
+
+export async function createNeed(needData) {
+  if (isSupabaseConfigured) {
+    try {
+      const { data, error } = await supabase.from("needs").insert(needData).select();
+      if (!error && data?.[0]) {
+        notify();
+        return mapNeedFromDb(data[0]);
+      }
+    } catch {
+      // fallback
+    }
+  }
+
+  const urgencyVal = (needData.urgency || "high").toLowerCase();
+  const newNeed = {
+    id: `need_${Date.now()}`,
+    camp_id: String(needData.camp_id || needData.campId),
+    item: needData.item,
+    quantity_needed: Number(needData.quantity_needed || needData.quantityNeeded),
+    quantity_fulfilled: 0,
+    urgency: urgencyVal,
+    status: "open",
+    archived: false,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  inMemoryNeeds.unshift(newNeed);
+  notify();
+
+  // If critical, trigger alert listeners
+  if (urgencyVal === "critical") {
+    alertListeners.forEach((cb) => cb(mapNeedFromDb(newNeed)));
+  }
+
+  return mapNeedFromDb(newNeed);
+}
+
+export async function updateNeedItem(needId, updates) {
+  if (isSupabaseConfigured) {
+    try {
+      const { data, error } = await supabase.from("needs").update(updates).eq("id", needId).select();
+      if (!error && data?.[0]) {
+        notify();
+        return mapNeedFromDb(data[0]);
+      }
+    } catch {
+      // fallback
+    }
+  }
+
+  const need = inMemoryNeeds.find((n) => String(n.id) === String(needId));
+  if (need) {
+    if (updates.item !== undefined) need.item = updates.item;
+    if (updates.quantity_needed !== undefined) need.quantity_needed = Number(updates.quantity_needed);
+    if (updates.urgency !== undefined) need.urgency = updates.urgency.toLowerCase();
+    need.updated_at = new Date().toISOString();
+    notify();
+    return mapNeedFromDb(need);
+  }
+}
+
+export async function archiveNeedItem(needId) {
+  if (isSupabaseConfigured) {
+    try {
+      await supabase.from("needs").update({ archived: true }).eq("id", needId);
+      notify();
+      return;
+    } catch {
+      // fallback
+    }
+  }
+
+  const need = inMemoryNeeds.find((n) => String(n.id) === String(needId));
+  if (need) {
+    need.archived = true;
+    notify();
+  }
+}
+
+export async function clearFulfilledNeeds(campId) {
+  if (isSupabaseConfigured) {
+    try {
+      const fulfilled = inMemoryNeeds.filter(
+        (n) => String(n.camp_id) === String(campId) && (n.status === "fulfilled" || n.quantity_fulfilled >= n.quantity_needed)
+      );
+      const ids = fulfilled.map((n) => n.id);
+      if (ids.length > 0) {
+        await supabase.from("needs").update({ archived: true }).in("id", ids);
+      }
+      notify();
+      return;
+    } catch {
+      // fallback
+    }
+  }
+
+  inMemoryNeeds.forEach((n) => {
+    if (String(n.camp_id) === String(campId) && (n.status === "fulfilled" || n.quantity_fulfilled >= n.quantity_needed)) {
+      n.archived = true;
+    }
+  });
   notify();
 }

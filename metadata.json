@@ -1,0 +1,8 @@
+{
+  "name": "ReliefLink — SANKALP Climate Edition",
+  "description": "Climate disaster coordination platform connecting relief camps, donors, real-time pledges, and public dashboards.",
+  "prompt": "ReliefLink SANKALP Climate Edition",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

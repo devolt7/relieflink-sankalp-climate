@@ -24,17 +24,17 @@ export default function Navbar({ lastUpdated }) {
   return (
     <header className="bg-ink text-white">
       <div className="flex items-center justify-between gap-2 px-3 py-2.5 sm:gap-4 sm:px-6">
-        <div className="flex items-center gap-3">
+        <NavLink to="/" className="flex items-center gap-3 hover:opacity-90 transition">
           <div className="flex h-7 w-7 items-center justify-center rounded-md bg-action">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
               <path d="M12 2 4 6v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V6l-8-4Z" />
             </svg>
           </div>
           <span className="font-display hidden text-sm font-semibold tracking-tight min-[420px]:inline">ReliefLink</span>
-        </div>
+        </NavLink>
 
         <nav className="flex items-center gap-1 sm:gap-2">
-          <NavLink to="/" end className={donorPortalCls}>
+          <NavLink to="/donor" className={donorPortalCls}>
             <svg
               width="16"
               height="16"
@@ -48,8 +48,12 @@ export default function Navbar({ lastUpdated }) {
             >
               <path d="M12 21s-7-5.2-9.5-9.6C.6 7.5 2.6 4 6.2 4c2 0 3.4 1 4.8 2.6C12.4 5 13.8 4 15.8 4c3.6 0 5.6 3.5 3.7 7.4C17 15.8 12 21 12 21Z" />
             </svg>
-            <span className="hidden sm:inline">Go to Donor Portal</span>
+            <span className="hidden sm:inline">Donor Portal</span>
             <span className="sm:hidden">Donate</span>
+          </NavLink>
+          <NavLink to="/camp" className={dashboardCls}>
+            <span className="hidden sm:inline">Camp Coordinator</span>
+            <span className="sm:hidden">Camps</span>
           </NavLink>
           <NavLink to="/dashboard" className={dashboardCls}>
             Dashboard

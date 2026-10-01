@@ -13,6 +13,9 @@
     "camp:dev": "npm run dev --workspace=apps/camp-portal",
     "camp:build": "npm run build --workspace=apps/camp-portal",
     "donor:dev": "npm run dev --workspace=apps/relieflink-donor-portal",
-    "donor:build": "npm run build --workspace=apps/relieflink-donor-portal"
+    "donor:build": "npm run build --workspace=apps/relieflink-donor-portal",
+    "climate:install": "npm install",
+    "climate:dev": "npm run dev --workspace=apps/relieflink-donor-portal",
+    "climate:build": "npm run build --workspace=apps/relieflink-donor-portal"
   }
 }

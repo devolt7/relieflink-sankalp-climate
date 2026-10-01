@@ -71,12 +71,19 @@ export function useLiveDashboardStats() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
-    const data = await getDashboardStats();
-    setStats(data);
-    setLastUpdated(new Date());
-    setLoading(false);
+    try {
+      const data = await getDashboardStats();
+      setStats(data);
+      setLastUpdated(new Date());
+      setError(null);
+    } catch (e) {
+      setError(e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
   const debouncedLoad = useDebouncedCallback(load);
 
@@ -85,5 +92,5 @@ export function useLiveDashboardStats() {
     return subscribeToChanges(debouncedLoad);
   }, [load, debouncedLoad]);
 
-  return { stats, loading, lastUpdated, refresh: load };
+  return { stats, loading, error, lastUpdated, refresh: load };
 }

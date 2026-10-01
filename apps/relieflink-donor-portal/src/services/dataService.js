@@ -299,76 +299,23 @@ export async function getFilteredNeeds({ district = "all", item = "all", urgency
 }
 
 export async function getDashboardStats() {
-  if (isSupabaseConfigured) {
-    try {
-      const [{ data: summary }, { data: urgencyRows }, { data: districtRows }] = await Promise.all([
-        supabase.from("dashboard_summary").select("*").single(),
-        supabase.from("dashboard_urgency_breakdown").select("*"),
-        supabase.from("dashboard_district_breakdown").select("*"),
-      ]);
-
-      if (summary && urgencyRows && districtRows) {
-        const byUrgency = { Critical: 0, High: 0, Moderate: 0 };
-        urgencyRows.forEach((row) => {
-          const key = capitalize(row.urgency);
-          byUrgency[key] = (row.open_count || 0) + (row.partial_count || 0);
-        });
-
-        const byDistrict = {};
-        districtRows.forEach((row) => {
-          byDistrict[row.district] = row.total_needs;
-        });
-
-        return {
-          totalCamps: summary.total_camps,
-          totalNeeds: summary.total_needs,
-          openNeeds: summary.open_needs + summary.partially_fulfilled_needs,
-          fulfilledPct: Math.round(summary.overall_fulfillment_percent || 0),
-          byUrgency,
-          byDistrict,
-        };
-      }
-    } catch (err) {
-      console.warn("Supabase dashboard stats failed, computing from memory:", err);
-    }
-  }
-
-  // In-memory calculation
-  const camps = inMemoryCamps;
-  const activeNeeds = inMemoryNeeds.filter((n) => !n.archived);
-  const openNeedsList = activeNeeds.filter((n) => n.status !== "fulfilled");
-
-  let totalQtyNeeded = 0;
-  let totalQtyFulfilled = 0;
-  activeNeeds.forEach((n) => {
-    totalQtyNeeded += Number(n.quantity_needed || 0);
-    totalQtyFulfilled += Number(n.quantity_fulfilled || 0);
-  });
-
-  const fulfilledPct = totalQtyNeeded > 0 ? Math.min(100, Math.round((totalQtyFulfilled / totalQtyNeeded) * 100)) : 0;
-
+  const camps = await getCampsWithNeeds();
+  const needs = camps.flatMap((camp) => camp.needs.map((need) => ({ ...need, district: camp.district })));
+  const openNeeds = needs.filter((need) => need.status !== "Fulfilled");
   const byUrgency = { Critical: 0, High: 0, Moderate: 0 };
-  openNeedsList.forEach((n) => {
-    const key = capitalize(n.urgency);
-    if (byUrgency[key] !== undefined) {
-      byUrgency[key]++;
-    } else {
-      byUrgency.Moderate++;
-    }
-  });
-
   const byDistrict = {};
-  activeNeeds.forEach((n) => {
-    const camp = camps.find((c) => String(c.id) === String(n.camp_id));
-    const dist = camp?.district || "Other";
-    byDistrict[dist] = (byDistrict[dist] || 0) + 1;
+  openNeeds.forEach((need) => {
+    byUrgency[need.urgency] = (byUrgency[need.urgency] || 0) + 1;
+    const district = need.district || "Unknown";
+    byDistrict[district] = (byDistrict[district] || 0) + 1;
   });
-
+  const requested = needs.reduce((sum, need) => sum + Number(need.quantityNeeded || 0), 0);
+  const fulfilled = needs.reduce((sum, need) => sum + Number(need.quantityFulfilled || 0), 0);
   return {
     totalCamps: camps.length,
-    totalNeeds: activeNeeds.length,
-    openNeeds: openNeedsList.length,
-    fulfilledPct,
+    totalNeeds: needs.length,
+    openNeeds: openNeeds.length,
+    fulfilledPct: requested ? Math.min(100, Math.round((fulfilled / requested) * 100)) : 0,
     byUrgency,
     byDistrict,
   };

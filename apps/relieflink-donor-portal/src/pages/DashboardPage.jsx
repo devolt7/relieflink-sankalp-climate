@@ -4,7 +4,7 @@ import DistrictChart from "../components/DistrictChart";
 import { useLiveDashboardStats } from "../hooks/useLiveData";
 
 export default function DashboardPage() {
-  const { stats, loading, lastUpdated } = useLiveDashboardStats();
+  const { stats, loading, error, lastUpdated, refresh } = useLiveDashboardStats();
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
@@ -22,8 +22,10 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {loading || !stats ? (
+      {loading || (!stats && !error) ? (
         <div className="py-16 text-center text-sm text-body-soft">Loading dashboard…</div>
+      ) : error ? (
+        <div role="alert" className="rounded-xl border border-line bg-white p-6 text-sm text-body">Dashboard data could not be loaded. Check the Supabase configuration and database access, then <button className="font-semibold text-action underline" onClick={refresh}>try again</button>.</div>
       ) : (
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

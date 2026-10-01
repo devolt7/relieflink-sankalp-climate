@@ -5,7 +5,7 @@ ReliefLink is a climate-disaster coordination prototype for **Predict → Prepar
 ## Project layout
 
 - `apps/camp-portal` — camp coordinator portal (React, TypeScript, Vite)
-- `apps/donor-portal` — donor map, claim flow, and public dashboard (React, Vite)
+- `apps/relieflink-donor-portal` — donor map, claim flow, and public dashboard (React, Vite)
 
 The Person 3 contribution lives in the donor app: early warning (`/climate`), Satin branch simulation (`/satin`), and impact metrics (`/impact`).
 
@@ -19,8 +19,8 @@ The Person 3 contribution lives in the donor app: early warning (`/climate`), Sa
 Copy each example environment file to `.env` in its app folder and fill in the same Supabase project URL and anon/publishable key:
 
 ```sh
-cp apps/camp-portal/.env.example apps/camp-portal/.env
-cp apps/donor-portal/.env.example apps/donor-portal/.env
+cp .env.example apps/camp-portal/.env
+cp .env.example apps/relieflink-donor-portal/.env
 ```
 
 The camp portal also reads `VITE_DONOR_PORTAL_URL`; its example points to the deployed donor app. Override it with `http://localhost:5173` only for local two-app development. Production builds ignore a localhost value and use the deployed donor URL as a safe fallback. The frontend archives do not include Supabase migrations or credentials. The shared database must provide the `camps`, `needs`, and `claims` tables and the `process_claim` RPC used by the donor app. The impact and summary dashboards calculate metrics from camp and need rows; aggregate dashboard views are not required. Configure database permissions and realtime publication for the tables as required by the apps. Do not put a Supabase service-role key in either frontend environment file.
@@ -38,18 +38,17 @@ Open-Meteo's free API is for non-commercial use and its data requires attributio
 
 ## Install and run
 
-Install the dependencies in each app:
+Install the workspace dependencies from the repository root:
 
 ```sh
-npm run camp:install
-npm run donor:install
+npm install
 ```
 
 Run each portal in a separate terminal:
 
 ```sh
-npm run camp:dev   # http://localhost:3000
-npm run donor:dev  # Vite's default URL, usually http://localhost:5173
+npm run camp:dev   # camp portal
+npm run climate:dev  # unified donor app, http://localhost:3000
 ```
 
 In the donor app, use **Climate risk**, **Satin branch**, and **Impact** in the navigation to open the Person 3 features.
@@ -60,7 +59,7 @@ The camp portal has a demo PIN gate (`1234` by default, configurable with `VITE_
 
 ```sh
 npm run camp:build
-npm run donor:build
+npm run climate:build
 ```
 
-Each app writes its production bundle to its own `dist/` directory. Deploy them as separate static frontends and point both at the same Supabase project.
+The climate build bundles the unified donor app, including the embedded camp coordinator screen. The standalone camp portal can also be built separately. Both frontends use the same Supabase project.

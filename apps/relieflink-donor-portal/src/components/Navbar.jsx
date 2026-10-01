@@ -30,7 +30,7 @@ export default function Navbar({ lastUpdated }) {
               <path d="M12 2 4 6v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V6l-8-4Z" />
             </svg>
           </div>
-          <span className="font-display hidden text-sm font-semibold tracking-tight min-[420px]:inline">ReliefLink</span>
+          <span className="font-display hidden text-sm font-semibold tracking-tight min-[420px]:inline">SANKALP · ReliefLink</span>
         </NavLink>
 
         <nav className="flex items-center gap-1 sm:gap-2">
@@ -62,6 +62,9 @@ export default function Navbar({ lastUpdated }) {
             <span className="hidden sm:inline">My Pledges</span>
             <span className="sm:hidden">Pledges</span>
           </NavLink>
+          <NavLink to="/climate" className={dashboardCls}>Climate risk</NavLink>
+          <NavLink to="/satin" className={dashboardCls}>Satin branch</NavLink>
+          <NavLink to="/impact" className={dashboardCls}>Impact</NavLink>
         </nav>
 
         <div className="flex items-center gap-2">

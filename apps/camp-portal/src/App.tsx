@@ -12,7 +12,7 @@ import { Moon, Sun, HeartHandshake } from 'lucide-react';
 // Keep local two-app development convenient, but never send a deployed camp
 // coordinator to localhost if Vercel still has an old environment value.
 const LOCAL_DONOR_PORTAL_URL = 'http://localhost:5173';
-const LIVE_DONOR_PORTAL_URL = 'https://relieflink-sankalp-climate.vercel.app';
+const LIVE_DONOR_PORTAL_URL = '/';
 const configuredDonorPortalUrl = import.meta.env.VITE_DONOR_PORTAL_URL?.trim();
 const configuredUrlIsLocal = /^https?:\/\/(localhost|127(?:\.\d{1,3}){3})(:\d+)?(?:\/|$)/i.test(configuredDonorPortalUrl || '');
 const DONOR_PORTAL_URL = import.meta.env.PROD

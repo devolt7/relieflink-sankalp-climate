@@ -1,8 +1,33 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run build",
-  "outputDirectory": "apps/relieflink-donor-portal/dist",
+  "services": {
+    "camp-portal": {
+      "root": "apps/camp-portal",
+      "framework": "vite"
+    },
+    "relieflink-donor-portal": {
+      "root": "apps/relieflink-donor-portal",
+      "framework": "vite"
+    }
+  },
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/camp-portal/(.*)",
+      "destination": {
+        "service": "camp-portal"
+      }
+    },
+    {
+      "source": "/camp-portal",
+      "destination": {
+        "service": "camp-portal"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "relieflink-donor-portal"
+      }
+    }
   ]
 }

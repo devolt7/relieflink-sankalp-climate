@@ -207,8 +207,20 @@ function CampForm({ onCancel, onSuccess, lang, branches }) {
       setError("Please provide a valid camp name.");
       return;
     }
+    if (!formData.district.trim()) {
+      setError("Please provide a district.");
+      return;
+    }
+    if (!formData.state.trim()) {
+      setError("Please provide a state.");
+      return;
+    }
     if (formData.contact_phone.trim().length < 10) {
-      setError("Please provide a valid 10-digit contact phone number.");
+      setError("Please provide a valid contact phone number (at least 10 digits).");
+      return;
+    }
+    if (!formData.branchId || !formData.branchId.trim()) {
+      setError("Please select the nearest affiliated Satin branch.");
       return;
     }
     const cap = parseInt(formData.capacity, 10);

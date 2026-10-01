@@ -204,7 +204,7 @@ export default function SatinBranchPage() {
           >
             <Sparkles className="h-4 w-4" />
             <span>
-              {simulating ? "Processing Approvals..." : "Trigger Recovery Support"}
+              {simulating ? "Processing Approvals..." : "Trigger Recovery Support (Simulated)"}
             </span>
           </button>
         )}
@@ -218,16 +218,21 @@ export default function SatinBranchPage() {
               <div className="flex items-center gap-3">
                 <CheckCircle className="h-6 w-6 text-emerald-600 shrink-0" />
                 <div>
-                  <h4 className="font-bold text-sm">
-                    Automated Disaster Relief Interventions Dispatched!
-                  </h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-sm">
+                      Automated Disaster Relief Interventions Dispatched
+                    </h4>
+                    <span className="rounded-md bg-emerald-200/70 px-2 py-0.5 text-[10px] font-bold text-emerald-900 uppercase">
+                      Simulated Protocol
+                    </span>
+                  </div>
                   <p className="text-xs text-emerald-800 mt-0.5">
-                    Triggered 3-month EMI moratorium + emergency micro-loan pre-approval up to {simulationResult.emergencyCreditLimit} for {simulationResult.count} verified flood-impacted borrowers.
+                    Simulated execution: Triggered 3-month EMI moratorium + emergency micro-loan pre-approval up to {simulationResult.emergencyCreditLimit} for {simulationResult.count} verified flood-impacted borrowers across this branch.
                   </p>
                 </div>
               </div>
               <span className="font-mono-data text-xs font-bold text-emerald-800 bg-white/80 px-3 py-1 rounded-xl border border-emerald-200 self-start sm:self-auto">
-                Status: Applied
+                Status: Applied (Demo)
               </span>
             </div>
           )}

@@ -13,6 +13,7 @@ import {
   Building2,
   ArrowRight,
   ShieldCheck,
+  Tent,
 } from "lucide-react";
 
 export default function ImpactPage() {
@@ -104,7 +105,7 @@ export default function ImpactPage() {
             <div className="rounded-2xl border border-line bg-white p-5 shadow-xs">
               <div className="flex items-center justify-between text-body-soft mb-2">
                 <span className="text-xs font-bold uppercase tracking-wider">Relief Camps Covered</span>
-                <Home className="h-4 w-4 text-action" />
+                <Tent className="h-4 w-4 text-action" />
               </div>
               <div className="font-display text-3xl font-bold text-ink font-mono-data">
                 {metrics.totalCamps}

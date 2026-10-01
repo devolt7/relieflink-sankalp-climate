@@ -59,7 +59,7 @@ export function DonorProvider({ children }) {
         type: "critical",
         title: "New critical need",
         body: `${need.item} — ${need.quantityNeeded} needed at ${where}`,
-        link: `/?camp=${need.campId}`,
+        link: `/donor?camp=${need.campId}`,
       });
     });
   }, [push]);

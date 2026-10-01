@@ -625,13 +625,23 @@ export async function createPledge({ needId, donorName, donorContact, quantity, 
   if (!need) throw new Error("Need item not found");
 
   const qty = Number(quantity);
+  if (isNaN(qty) || qty <= 0 || !Number.isInteger(qty)) {
+    throw new Error("Pledge quantity must be a positive whole number.");
+  }
+  if (!donorName || !donorName.trim()) {
+    throw new Error("Donor name is required.");
+  }
+  if (!donorContact || !donorContact.trim()) {
+    throw new Error("Donor contact (phone or email) is required.");
+  }
+
   const newPledge = {
     id: `pledge_${Date.now()}`,
     need_id: String(needId),
-    donor_name: donorName,
-    donor_contact: donorContact,
+    donor_name: donorName.trim(),
+    donor_contact: donorContact.trim(),
     quantity: qty,
-    note: note || null,
+    note: note ? note.trim() : null,
     status: "pledged",
     created_at: new Date().toISOString(),
     dispatched_at: null,
@@ -639,22 +649,13 @@ export async function createPledge({ needId, donorName, donorContact, quantity, 
   };
 
   inMemoryPledges.unshift(newPledge);
-
-  need.quantity_fulfilled = (need.quantity_fulfilled || 0) + qty;
-  if (need.quantity_fulfilled >= need.quantity_needed) {
-    need.status = "fulfilled";
-  } else {
-    need.status = "partially_fulfilled";
-  }
-  need.updated_at = new Date().toISOString();
-
   notify();
   return { success: true, pledgeId: newPledge.id };
 }
 
 export async function markPledgeDispatched(pledgeId, contact) {
   const pledge = inMemoryPledges.find((p) => String(p.id) === String(pledgeId));
-  if (pledge) {
+  if (pledge && pledge.status === "pledged") {
     pledge.status = "dispatched";
     pledge.dispatched_at = new Date().toISOString();
     notify();
@@ -664,14 +665,18 @@ export async function markPledgeDispatched(pledgeId, contact) {
 export async function cancelPledge(pledgeId, contact) {
   const pledge = inMemoryPledges.find((p) => String(p.id) === String(pledgeId));
   if (pledge && pledge.status !== "cancelled") {
+    const wasReceived = pledge.status === "received";
     pledge.status = "cancelled";
-    const need = inMemoryNeeds.find((n) => String(n.id) === String(pledge.need_id));
-    if (need) {
-      need.quantity_fulfilled = Math.max(0, (need.quantity_fulfilled || 0) - pledge.quantity);
-      if (need.quantity_fulfilled === 0) {
-        need.status = "open";
-      } else if (need.quantity_fulfilled < need.quantity_needed) {
-        need.status = "partially_fulfilled";
+
+    if (wasReceived) {
+      const need = inMemoryNeeds.find((n) => String(n.id) === String(pledge.need_id));
+      if (need) {
+        need.quantity_fulfilled = Math.max(0, (need.quantity_fulfilled || 0) - pledge.quantity);
+        if (need.quantity_fulfilled === 0) {
+          need.status = "open";
+        } else if (need.quantity_fulfilled < need.quantity_needed) {
+          need.status = "partially_fulfilled";
+        }
       }
     }
     notify();
@@ -680,9 +685,20 @@ export async function cancelPledge(pledgeId, contact) {
 
 export async function confirmPledgeReceived(pledgeId) {
   const pledge = inMemoryPledges.find((p) => String(p.id) === String(pledgeId));
-  if (pledge) {
+  if (pledge && pledge.status !== "received") {
     pledge.status = "received";
     pledge.received_at = new Date().toISOString();
+
+    const need = inMemoryNeeds.find((n) => String(n.id) === String(pledge.need_id));
+    if (need) {
+      need.quantity_fulfilled = (need.quantity_fulfilled || 0) + pledge.quantity;
+      if (need.quantity_fulfilled >= need.quantity_needed) {
+        need.status = "fulfilled";
+      } else if (need.quantity_fulfilled > 0) {
+        need.status = "partially_fulfilled";
+      }
+      need.updated_at = new Date().toISOString();
+    }
     notify();
   }
 }
@@ -692,17 +708,29 @@ export async function confirmPledgeReceived(pledgeId) {
 // ---------------------------------------------------------------------------
 
 export async function createCamp(campData) {
+  if (!campData.name || !campData.name.trim()) throw new Error("Camp name is required.");
+  if (!campData.district || !campData.district.trim()) throw new Error("District is required.");
+  if (!campData.state || !campData.state.trim()) throw new Error("State is required.");
+  if (!campData.contact_phone || campData.contact_phone.trim().length < 10) {
+    throw new Error("Valid contact phone number (at least 10 digits) is required.");
+  }
+  if (!campData.branchId || !campData.branchId.trim()) {
+    throw new Error("Affiliated Satin branch selection is required.");
+  }
+  const cap = Number(campData.capacity || 300);
+  if (isNaN(cap) || cap <= 0) throw new Error("Shelter capacity must be a positive number.");
+
   const newCamp = {
     id: `camp_${Date.now()}`,
-    name: campData.name,
-    district: campData.district,
-    state: campData.state || campData.district,
-    lat: Number(campData.lat),
-    lng: Number(campData.lng),
-    contact_phone: campData.contact_phone || campData.phone,
-    capacity: Number(campData.capacity || 300),
-    branchId: campData.branchId || "branch_sivasagar",
-    branchName: campData.branchName || "Satin Finserv Branch",
+    name: campData.name.trim(),
+    district: campData.district.trim(),
+    state: campData.state.trim(),
+    lat: Number(campData.lat) || 26.98,
+    lng: Number(campData.lng) || 94.63,
+    contact_phone: campData.contact_phone.trim(),
+    capacity: cap,
+    branchId: campData.branchId.trim(),
+    branchName: campData.branchName ? campData.branchName.trim() : "Satin Finserv Branch",
     verification_status: "pending", // New camps go to pending first as required in F2!
     created_at: new Date().toISOString(),
   };
@@ -713,12 +741,18 @@ export async function createCamp(campData) {
 }
 
 export async function createNeed(needData) {
+  if (!needData.item || !needData.item.trim()) throw new Error("Item description is required.");
+  const qty = Number(needData.quantity_needed || needData.quantityNeeded);
+  if (isNaN(qty) || qty <= 0 || !Number.isInteger(qty)) {
+    throw new Error("Quantity needed must be a positive whole number.");
+  }
+
   const urgencyVal = (needData.urgency || "high").toLowerCase();
   const newNeed = {
     id: `need_${Date.now()}`,
     camp_id: String(needData.camp_id || needData.campId),
-    item: needData.item,
-    quantity_needed: Number(needData.quantity_needed || needData.quantityNeeded),
+    item: needData.item.trim(),
+    quantity_needed: qty,
     quantity_fulfilled: 0,
     urgency: urgencyVal,
     status: "open",
@@ -740,8 +774,22 @@ export async function createNeed(needData) {
 export async function updateNeedItem(needId, updates) {
   const need = inMemoryNeeds.find((n) => String(n.id) === String(needId));
   if (need) {
-    if (updates.item !== undefined) need.item = updates.item;
-    if (updates.quantity_needed !== undefined) need.quantity_needed = Number(updates.quantity_needed);
+    if (updates.item !== undefined) {
+      if (!updates.item.trim()) throw new Error("Item name cannot be empty.");
+      need.item = updates.item.trim();
+    }
+    if (updates.quantity_needed !== undefined) {
+      const q = Number(updates.quantity_needed);
+      if (isNaN(q) || q <= 0 || !Number.isInteger(q)) throw new Error("Quantity must be a positive whole number.");
+      need.quantity_needed = q;
+      if (need.quantity_fulfilled >= need.quantity_needed) {
+        need.status = "fulfilled";
+      } else if (need.quantity_fulfilled > 0) {
+        need.status = "partially_fulfilled";
+      } else {
+        need.status = "open";
+      }
+    }
     if (updates.urgency !== undefined) need.urgency = updates.urgency.toLowerCase();
     need.updated_at = new Date().toISOString();
     notify();

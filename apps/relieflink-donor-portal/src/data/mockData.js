@@ -164,6 +164,18 @@ export const mockBranches = [
     activePortfolio: "₹ 2,10,00,000",
     serviceRadiusKm: 25,
   },
+  {
+    id: "branch_vijayawada",
+    name: "Satin Finserv Vijayawada Branch #401",
+    code: "SFS-AP-401",
+    district: "Vijayawada (Krishna)",
+    state: "Andhra Pradesh",
+    officer: "Venkata Rao",
+    contact: "+91 98480 22334",
+    totalBorrowers: 530,
+    activePortfolio: "₹ 2,45,00,000",
+    serviceRadiusKm: 35,
+  },
 ];
 
 export const mockCamps = [
@@ -280,6 +292,20 @@ export const mockCamps = [
     createdAt: "2026-08-09T10:30:00Z",
   },
   {
+    id: "camp_vijayawada_1",
+    name: "Bhavani Island Flood Relief Camp",
+    district: "Vijayawada (Krishna)",
+    state: "Andhra Pradesh",
+    lat: 16.518,
+    lng: 80.612,
+    phone: "+91 98480 77651",
+    capacity: 480,
+    branchId: "branch_vijayawada",
+    branchName: "Satin Finserv Vijayawada Branch #401",
+    verification: "verified",
+    createdAt: "2026-08-09T11:00:00Z",
+  },
+  {
     id: "camp_pending_1",
     name: "Nazira Panchayat Ground Tent Shelter",
     district: "Sivasagar",
@@ -325,6 +351,10 @@ export const mockNeeds = [
   { id: "need_16", campId: "camp_surat_1", item: "Emergency Blankets", quantityNeeded: 250, quantityFulfilled: 90, urgency: "Moderate", status: "Partially Fulfilled", createdAt: "2026-08-09T10:10:00Z", updatedAt: "2026-08-10T08:50:00Z" },
   { id: "need_17", campId: "camp_surat_1", item: "Packaged Mineral Water (1L Boxes)", quantityNeeded: 300, quantityFulfilled: 120, urgency: "High", status: "Partially Fulfilled", createdAt: "2026-08-09T11:15:00Z", updatedAt: "2026-08-10T09:05:00Z" },
   
+  // Vijayawada Camp
+  { id: "need_19", campId: "camp_vijayawada_1", item: "Water Purification Sachets & Cans", quantityNeeded: 300, quantityFulfilled: 100, urgency: "Critical", status: "Partially Fulfilled", createdAt: "2026-08-09T11:20:00Z", updatedAt: "2026-08-10T09:10:00Z" },
+  { id: "need_20", campId: "camp_vijayawada_1", item: "Emergency Dry Ration Packs", quantityNeeded: 250, quantityFulfilled: 50, urgency: "High", status: "Partially Fulfilled", createdAt: "2026-08-09T11:30:00Z", updatedAt: "2026-08-10T09:20:00Z" },
+
   // Pending Camp
   { id: "need_18", campId: "camp_pending_1", item: "Water Storage Tanks (500L)", quantityNeeded: 4, quantityFulfilled: 0, urgency: "High", status: "Open", createdAt: "2026-08-10T09:20:00Z", updatedAt: "2026-08-10T09:20:00Z" },
 ];

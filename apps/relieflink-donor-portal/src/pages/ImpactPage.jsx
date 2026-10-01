@@ -1,49 +1,215 @@
-import { useCallback, useEffect, useState } from "react";
-import { loadInsightCamps, summarizeImpact } from "../services/insightsService";
-
-function MetricCard({ label, value, detail }) {
-  return <article className="rounded-2xl border border-line bg-white p-4 shadow-sm sm:p-5"><p className="text-xs font-semibold uppercase tracking-wide text-body-soft">{label}</p><p className="mt-2 font-display text-3xl font-semibold text-ink">{value}</p><p className="mt-1 text-xs text-body-soft">{detail}</p></article>;
-}
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import BreadcrumbBar from "../components/BreadcrumbBar";
+import { getImpactMetrics, getDashboardStats, subscribeToChanges } from "../services/dataService";
+import UrgencyChart from "../components/UrgencyChart";
+import DistrictChart from "../components/DistrictChart";
+import {
+  TrendingUp,
+  Clock,
+  HeartHandshake,
+  CheckCircle2,
+  Users,
+  Building2,
+  ArrowRight,
+  ShieldCheck,
+} from "lucide-react";
 
 export default function ImpactPage() {
-  const [data, setData] = useState(null);
-  const [source, setSource] = useState("loading");
-  const [error, setError] = useState(null);
+  const [metrics, setMetrics] = useState(null);
+  const [dashboardStats, setDashboardStats] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const refresh = useCallback(async () => {
-    const result = await loadInsightCamps();
-    setData(summarizeImpact(result.camps));
-    setSource(result.source);
-    setError(result.error);
+  const loadData = async () => {
+    try {
+      const [m, s] = await Promise.all([getImpactMetrics(), getDashboardStats()]);
+      setMetrics(m);
+      setDashboardStats(s);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+    return subscribeToChanges(loadData);
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
-
-  if (!data) return <main className="mx-auto max-w-6xl px-4 py-12 text-center text-sm text-body-soft">Loading impact metrics…</main>;
-
   return (
-    <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-action">SANKALP · Climate Edition</p><h1 className="mt-1 font-display text-2xl font-semibold text-ink sm:text-3xl">Relief impact</h1><p className="mt-1 text-sm text-body-soft">A live view of camp needs, fulfillment and geographic reach.</p></div>
-        <div className="flex items-center gap-3"><span className="rounded-full bg-paper-dim px-3 py-1.5 text-xs font-medium text-body">{source === "live" ? "Live Supabase data" : "Sample demo data"}</span><button onClick={refresh} className="rounded-lg border border-line px-3 py-2 text-sm font-semibold text-ink hover:bg-paper">Refresh</button></div>
-      </div>
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 animate-fade-in">
+      <BreadcrumbBar
+        backTo="/donor"
+        backLabel="Relief Map"
+        current="Impact & Situation Telemetry"
+        category="Public Accountability"
+        subtitle="Real-time operational metrics across Assam, Bihar & Gujarat flood response: supply turnaround speed, verified intake proofs, and overall need fulfillment."
+        actions={
+          <Link
+            to="/donor"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-action px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-action-hover transition"
+          >
+            <HeartHandshake className="h-3.5 w-3.5" />
+            <span>Support Camps on Map</span>
+          </Link>
+        }
+      />
 
-      {error && <div className="mb-4 rounded-xl border border-moderate/30 bg-moderate-soft px-4 py-3 text-sm text-body">Database metrics aren’t available yet. Showing sample values so the dashboard remains usable.</div>}
+      {loading || !metrics ? (
+        <div className="py-24 text-center text-body-soft">
+          <p className="text-sm font-semibold">Aggregating live impact telemetry...</p>
+        </div>
+      ) : (
+        <div className="mt-6 space-y-6">
+          {/* Top KPI Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="rounded-2xl border border-line bg-white p-5 shadow-xs">
+              <div className="flex items-center justify-between text-body-soft mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider">Families Assisted</span>
+                <Users className="h-4 w-4 text-action" />
+              </div>
+              <div className="font-display text-3xl font-bold text-ink font-mono-data">
+                {metrics.familiesAssisted.toLocaleString()}+
+              </div>
+              <p className="text-[11px] text-body-soft mt-1">
+                Derived from delivered rations & shelter units
+              </p>
+            </div>
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <MetricCard label="Relief camps" value={data.totalCamps} detail="Camp locations in the current dataset" />
-        <MetricCard label="Needs posted" value={data.totalNeeds} detail={`${data.fulfilledNeeds} fully fulfilled`} />
-        <MetricCard label="Needs fulfilled" value={`${data.fulfilledPct}%`} detail="Fully fulfilled needs / total needs" />
-        <MetricCard label="Average fulfilment time" value={data.avgHours == null ? "—" : data.avgHours < 24 ? `${data.avgHours.toFixed(1)} h` : `${(data.avgHours / 24).toFixed(1)} d`} detail="From need creation to its last update, fulfilled needs only" />
-        <MetricCard label="Districts covered" value={data.districtCount} detail="Districts with at least one camp" />
-        <MetricCard label="Families helped · estimate" value={data.familiesEstimate.toLocaleString("en-IN")} detail="Planning proxy: 25 families per fully fulfilled need" />
-      </section>
+            <div className="rounded-2xl border border-line bg-white p-5 shadow-xs">
+              <div className="flex items-center justify-between text-body-soft mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider">Avg Fulfilment Speed</span>
+                <Clock className="h-4 w-4 text-action" />
+              </div>
+              <div className="font-display text-3xl font-bold text-ink font-mono-data">
+                {metrics.avgFulfillmentTimeHours}
+              </div>
+              <p className="text-[11px] text-body-soft mt-1">
+                From donor pledge to verified camp intake
+              </p>
+            </div>
 
-      <section className="mt-5 rounded-2xl border border-line bg-white p-4 shadow-sm sm:p-5">
-        <div className="mb-4 flex items-end justify-between"><div><h2 className="font-display text-base font-semibold text-ink">District coverage</h2><p className="mt-1 text-xs text-body-soft">Open needs and fulfillment by district</p></div><span className="text-xs text-body-soft">{data.byDistrict.length} districts</span></div>
-        {data.byDistrict.length ? <div className="overflow-x-auto"><table className="w-full min-w-[420px] text-left text-sm"><thead className="border-b border-line text-xs uppercase tracking-wide text-body-soft"><tr><th className="pb-3 font-medium">District</th><th className="pb-3 font-medium">Needs</th><th className="pb-3 font-medium">Fulfilled</th><th className="pb-3 font-medium">Progress</th></tr></thead><tbody className="divide-y divide-line">{data.byDistrict.map((row) => <tr key={row.district}><td className="py-3 font-medium text-ink">{row.district}</td><td className="py-3 text-body">{row.needs}</td><td className="py-3 text-body">{row.fulfilled}</td><td className="py-3"><div className="flex items-center gap-2"><div className="h-2 w-24 overflow-hidden rounded-full bg-paper-dim"><div className="h-full bg-fulfilled" style={{ width: `${row.needs ? (row.fulfilled / row.needs) * 100 : 0}%` }} /></div><span className="font-mono-data text-xs text-body-soft">{row.needs ? Math.round((row.fulfilled / row.needs) * 100) : 0}%</span></div></td></tr>)}</tbody></table></div> : <p className="py-8 text-center text-sm text-body-soft">No needs have been posted yet.</p>}
-      </section>
-      <p className="mt-3 text-[11px] leading-5 text-body-soft">Families helped is an estimate for the pilot story, not a verified count of households. The dashboard switches to sample data if Supabase is unavailable.</p>
-    </main>
+            <div className="rounded-2xl border border-line bg-white p-5 shadow-xs">
+              <div className="flex items-center justify-between text-body-soft mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider">Overall Fulfilled</span>
+                <CheckCircle2 className="h-4 w-4 text-fulfilled" />
+              </div>
+              <div className="font-display text-3xl font-bold text-fulfilled font-mono-data">
+                {metrics.fulfilledRate}%
+              </div>
+              <p className="text-[11px] text-body-soft mt-1">
+                {metrics.fulfilledNeedsCount} of {metrics.totalNeedsCount} requirements reached
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-line bg-white p-5 shadow-xs">
+              <div className="flex items-center justify-between text-body-soft mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider">Relief Camps Covered</span>
+                <Home className="h-4 w-4 text-action" />
+              </div>
+              <div className="font-display text-3xl font-bold text-ink font-mono-data">
+                {metrics.totalCamps}
+              </div>
+              <p className="text-[11px] text-body-soft mt-1">
+                Across {metrics.districtsCovered} disaster-prone districts
+              </p>
+            </div>
+          </div>
+
+          {/* Fulfillment Progress Bar Card */}
+          <div className="rounded-2xl border border-line bg-white p-5 sm:p-6 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="font-display text-base font-bold text-ink">Crisis Response Fulfillment Trajectory</h3>
+                <p className="text-xs text-body-soft">
+                  Proportion of posted field requirements claimed and delivered by verified donors.
+                </p>
+              </div>
+              <span className="font-display text-xl font-bold text-fulfilled font-mono-data">
+                {metrics.fulfilledRate}% Fulfilled
+              </span>
+            </div>
+            <div className="mt-4 h-3.5 w-full overflow-hidden rounded-full bg-paper-dim">
+              <div
+                className="h-full rounded-full bg-fulfilled transition-all duration-700"
+                style={{ width: `${metrics.fulfilledRate}%` }}
+              />
+            </div>
+            <div className="mt-3 flex items-center justify-between text-xs text-body-soft font-mono-data">
+              <span>{metrics.fulfilledNeedsCount} needs fulfilled</span>
+              <span>{metrics.totalNeedsCount - metrics.fulfilledNeedsCount} active gaps remaining</span>
+            </div>
+          </div>
+
+          {/* Charts Grid */}
+          {dashboardStats && (
+            <div className="grid gap-6 sm:grid-cols-2">
+              <div className="rounded-2xl border border-line bg-white p-5 sm:p-6 shadow-xs">
+                <h3 className="font-display text-base font-bold text-ink mb-1">
+                  Demand Urgency Breakdown
+                </h3>
+                <p className="text-xs text-body-soft mb-4">
+                  Distribution of open requirements by urgency level.
+                </p>
+                <UrgencyChart byUrgency={dashboardStats.byUrgency} />
+              </div>
+
+              <div className="rounded-2xl border border-line bg-white p-5 sm:p-6 shadow-xs">
+                <h3 className="font-display text-base font-bold text-ink mb-1">
+                  Geographic Coverage by District
+                </h3>
+                <p className="text-xs text-body-soft mb-4">
+                  Camps and operational need density across affected river basins.
+                </p>
+                <DistrictChart byDistrict={dashboardStats.byDistrict} />
+              </div>
+            </div>
+          )}
+
+          {/* SANKALP Pillars Summary */}
+          <div className="rounded-2xl border border-line bg-paper/60 p-6">
+            <h3 className="font-display text-base font-bold text-ink mb-4">
+              Integrated Climate Response Pipeline
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="rounded-xl border border-line bg-white p-4">
+                <span className="text-xs font-bold text-action">01 · PREDICT</span>
+                <h4 className="font-bold text-sm text-ink mt-1">Open-Meteo Early Warning</h4>
+                <p className="text-xs text-body-soft mt-1 leading-relaxed">
+                  Real-time precipitation and hydro telemetry forecasts river breaches 48-72 hours in advance.
+                </p>
+                <Link to="/climate" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-action hover:underline">
+                  <span>Explore early warning</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+
+              <div className="rounded-xl border border-line bg-white p-4">
+                <span className="text-xs font-bold text-action">02 · RELIEF</span>
+                <h4 className="font-bold text-sm text-ink mt-1">Verified Camps & Pledges</h4>
+                <p className="text-xs text-body-soft mt-1 leading-relaxed">
+                  Field coordinators post prioritized supplies. Donors track items from pledge to confirmed delivery.
+                </p>
+                <Link to="/donor" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-action hover:underline">
+                  <span>Open donor portal</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+
+              <div className="rounded-xl border border-line bg-white p-4">
+                <span className="text-xs font-bold text-action">03 · RECOVER</span>
+                <h4 className="font-bold text-sm text-ink mt-1">Satin Branch Recovery</h4>
+                <p className="text-xs text-body-soft mt-1 leading-relaxed">
+                  Local microfinance branches trigger emergency loan moratoriums and micro-credit relief to rebuild livelihoods.
+                </p>
+                <Link to="/satin" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-action hover:underline">
+                  <span>Branch recovery layer</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,101 +1,375 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import DistrictRiskMap from "../components/DistrictRiskMap";
-import { DISTRICTS, SUPPLY_SUGGESTIONS } from "../climate/districts";
-import { loadClimateOutlook } from "../climate/climateService";
-
-const RISK_STYLES = {
-  High: "border-critical/20 bg-critical-soft text-critical",
-  Medium: "border-high/20 bg-high-soft text-high",
-  Low: "border-fulfilled/20 bg-fulfilled-soft text-fulfilled",
-};
-
-function RiskBadge({ risk }) {
-  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${RISK_STYLES[risk] || RISK_STYLES.Low}`}>{risk} risk</span>;
-}
+import { useState, useEffect, useCallback } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import BreadcrumbBar from "../components/BreadcrumbBar";
+import {
+  getDistricts,
+  getDistrictClimateForecast,
+  triggerPrepositioningSupplies,
+  getCamps,
+} from "../services/dataService";
+import {
+  CloudRain,
+  Waves,
+  ShieldAlert,
+  ShieldCheck,
+  CheckCircle2,
+  PackagePlus,
+  ArrowRight,
+  RefreshCw,
+  MapPin,
+  Building2,
+  Tent,
+  HeartHandshake,
+} from "lucide-react";
 
 export default function ClimatePage() {
-  const [outlook, setOutlook] = useState([]);
-  const [selectedName, setSelectedName] = useState("Sivasagar");
-  const [source, setSource] = useState("loading");
-  const [warning, setWarning] = useState(null);
+  const [params, setParams] = useSearchParams();
+  const [districts, setDistricts] = useState([]);
+  const [selectedDistrictId, setSelectedDistrictId] = useState("sivasagar");
+  const [forecast, setForecast] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [prepositioning, setPrepositioning] = useState(false);
+  const [prepositionSuccess, setPrepositionSuccess] = useState(null);
+  const [camps, setCamps] = useState([]);
 
-  const refresh = useCallback(async () => {
+  useEffect(() => {
+    getDistricts().then((d) => {
+      setDistricts(d);
+      const queryDistrict = params.get("district");
+      if (queryDistrict) {
+        const found = d.find(
+          (item) =>
+            item.id.toLowerCase() === queryDistrict.toLowerCase() ||
+            item.name.toLowerCase().includes(queryDistrict.toLowerCase())
+        );
+        if (found) {
+          setSelectedDistrictId(found.id);
+          return;
+        }
+      }
+      if (d.length > 0) setSelectedDistrictId(d[0].id);
+    });
+    getCamps().then(setCamps);
+  }, [params]);
+
+  const loadForecast = useCallback(async (districtId) => {
     setLoading(true);
-    const result = await loadClimateOutlook(DISTRICTS);
-    setOutlook(result.outlook);
-    setSource(result.source);
-    setWarning(result.warning);
-    setLoading(false);
+    setPrepositionSuccess(null);
+    try {
+      const data = await getDistrictClimateForecast(districtId);
+      setForecast(data);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    if (selectedDistrictId) {
+      loadForecast(selectedDistrictId);
+    }
+  }, [selectedDistrictId, loadForecast]);
 
-  const selected = useMemo(() => outlook.find((district) => district.name === selectedName) || outlook[0], [outlook, selectedName]);
-  const suggestions = selected ? SUPPLY_SUGGESTIONS[selected.risk] : [];
-  const sourceLabel = source === "live" ? "Live forecast" : source === "cached" ? "Last saved" : source === "loading" ? "Loading forecast" : "Demo sample";
+  const handlePreposition = async () => {
+    if (!forecast || !forecast.suggestedSupplies) return;
+    setPrepositioning(true);
+    try {
+      const res = await triggerPrepositioningSupplies(forecast.district.name, forecast.suggestedSupplies);
+      setPrepositionSuccess(res);
+      getCamps().then(setCamps);
+    } catch (err) {
+      alert(err?.message || "Failed to pre-position supplies");
+    } finally {
+      setPrepositioning(false);
+    }
+  };
+
+  const currentDistrictCamps = camps.filter((c) =>
+    forecast && (c.district.toLowerCase().includes(forecast.district.name.toLowerCase()) || forecast.district.name.toLowerCase().includes(c.district.toLowerCase()))
+  );
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-action">Predict · Climate readiness</p>
-          <h1 className="mt-1 font-display text-2xl font-semibold text-ink sm:text-3xl">Flood early warning</h1>
-          <p className="mt-1 max-w-2xl text-sm text-body-soft">A district screening signal combines the next 3 days of rain with forecast river flow to guide supply staging before impact.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="rounded-full bg-paper-dim px-3 py-1.5 text-xs font-medium text-body">{sourceLabel}</span>
-          <button onClick={refresh} disabled={loading} className="rounded-lg bg-action px-3 py-2 text-sm font-semibold text-white hover:bg-action-hover disabled:opacity-60">{loading ? "Refreshing…" : "Refresh forecast"}</button>
-        </div>
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 animate-fade-in">
+      <BreadcrumbBar
+        backTo="/donor"
+        backLabel="Relief Map"
+        current="Flood Early Warning & Pre-positioning"
+        category="Predict & Prepare"
+        subtitle="Live precipitation forecasts and river discharge thresholds from Open-Meteo. Identify flood-risk basins 48h before inundation and stage supplies."
+        actions={
+          <button
+            onClick={() => loadForecast(selectedDistrictId)}
+            disabled={loading}
+            className="flex items-center gap-1.5 rounded-xl border border-line bg-white px-3 py-1.5 text-xs font-semibold text-body hover:bg-paper-dim transition"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            <span>Refresh Live Telemetry</span>
+          </button>
+        }
+      />
+
+      {/* District Selector Carousel */}
+      <div className="mt-6 flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+        {districts.map((d) => {
+          const isSelected = d.id === selectedDistrictId;
+          return (
+            <button
+              key={d.id}
+              onClick={() => {
+                setSelectedDistrictId(d.id);
+                setParams({ district: d.name });
+              }}
+              className={`flex items-center gap-2 shrink-0 rounded-xl px-4 py-2 text-xs font-semibold transition border ${
+                isSelected
+                  ? "bg-action text-white border-action shadow-xs"
+                  : "bg-white text-body border-line hover:bg-paper-dim"
+              }`}
+            >
+              <MapPin className={`h-3.5 w-3.5 ${isSelected ? "text-white" : "text-action"}`} />
+              <span>{d.name}</span>
+              <span className={`text-[10px] ${isSelected ? "text-white/80" : "text-body-soft"}`}>
+                ({d.state})
+              </span>
+            </button>
+          );
+        })}
       </div>
 
-      {warning && <div className="mb-4 rounded-lg border border-moderate/30 bg-moderate-soft px-4 py-3 text-sm text-body">{warning}</div>}
-
-      <div className="grid gap-5 xl:grid-cols-[1.35fr_0.85fr]">
-        <section className="overflow-hidden rounded-2xl border border-line bg-white p-3 shadow-sm sm:p-4">
-          <div className="mb-3 flex items-center justify-between px-1">
-            <h2 className="font-display text-base font-semibold text-ink">District risk map</h2>
-            <span className="text-xs text-body-soft">Assam · Bihar · Andhra Pradesh</span>
-          </div>
-          <DistrictRiskMap outlook={outlook} onSelect={setSelectedName} />
-          <div className="mt-3 flex flex-wrap gap-4 px-1 text-xs text-body-soft">
-            {[["High", "bg-critical"], ["Medium", "bg-high"], ["Low", "bg-fulfilled"]].map(([name, color]) => <span key={name} className="inline-flex items-center gap-1.5"><i className={`h-2.5 w-2.5 rounded-full ${color}`} />{name}</span>)}
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-line bg-white p-4 shadow-sm sm:p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <div><h2 className="font-display text-base font-semibold text-ink">Suggested pre-positioning</h2><p className="mt-0.5 text-xs text-body-soft">Select a district to view a planning checklist.</p></div>
-            {selected && <RiskBadge risk={selected.risk} />}
-          </div>
-          <label className="mb-4 block text-xs font-semibold text-body" htmlFor="risk-district">District</label>
-          <select id="risk-district" value={selected?.name || selectedName} onChange={(event) => setSelectedName(event.target.value)} className="mb-4 w-full rounded-lg border border-line bg-paper px-3 py-2.5 text-sm text-ink">
-            {DISTRICTS.map((district) => <option key={district.name} value={district.name}>{district.name}, {district.state}</option>)}
-          </select>
-
-          {selected ? (
-            <>
-              <div className="grid grid-cols-2 gap-2 rounded-xl bg-paper p-3">
-                <div><p className="text-[11px] uppercase tracking-wide text-body-soft">3-day rain</p><p className="mt-1 font-mono-data text-lg font-semibold text-ink">{selected.rainfallMm} <small className="text-xs font-normal">mm</small></p></div>
-                <div><p className="text-[11px] uppercase tracking-wide text-body-soft">River flow</p><p className="mt-1 font-mono-data text-lg font-semibold text-ink">{selected.dischargeRatio ? `${selected.dischargeRatio.toFixed(1)}×` : "—"} <small className="text-xs font-normal">vs recent p90</small></p></div>
+      {loading || !forecast ? (
+        <div className="py-24 text-center text-body-soft">
+          <RefreshCw className="mx-auto h-8 w-8 animate-spin text-action mb-3" />
+          <p className="text-sm font-semibold">Analyzing basin climate telemetry & hydro-data...</p>
+        </div>
+      ) : (
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Risk Analysis Card */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="rounded-2xl border border-line bg-white p-5 sm:p-6 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-display text-xl font-bold text-ink">{forecast.district.name} Catchment</h2>
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${
+                        forecast.riskTier === "High"
+                          ? "bg-critical-soft text-critical border border-critical/30"
+                          : forecast.riskTier === "Medium"
+                          ? "bg-high-soft text-high border border-high/30"
+                          : "bg-fulfilled-soft text-fulfilled border border-fulfilled/30"
+                      }`}
+                    >
+                      {forecast.riskTier === "High" ? (
+                        <ShieldAlert className="h-3 w-3" />
+                      ) : (
+                        <ShieldCheck className="h-3 w-3" />
+                      )}
+                      <span>{forecast.riskTier} Flood Risk</span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-body-soft mt-1">
+                    River Basin: <strong className="text-ink">{forecast.riverCatchment}</strong>
+                  </p>
+                </div>
+                <div className="text-left sm:text-right">
+                  <span className="text-[11px] font-mono-data text-body-soft bg-paper px-2.5 py-1 rounded-lg border border-line">
+                    Source: {forecast.source}
+                  </span>
+                </div>
               </div>
-              <p className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-body-soft">Stage these supplies</p>
-              <ul className="divide-y divide-line">
-                {suggestions.map((supply) => <li key={supply.item} className="flex items-center justify-between gap-3 py-3"><span className="text-sm font-medium text-ink">{supply.item}</span><span className="text-right text-xs text-body-soft">{supply.quantity}</span></li>)}
-              </ul>
-              <p className="mt-3 text-[11px] leading-5 text-body-soft">Planning suggestions are indicative, not official evacuation or flood warnings. Confirm with district authorities before dispatch.</p>
-            </>
-          ) : <p className="py-8 text-center text-sm text-body-soft">Loading district forecast…</p>}
-        </section>
-      </div>
 
-      <section className="mt-5 rounded-2xl border border-line bg-white p-4 shadow-sm sm:p-5">
-        <h2 className="mb-3 font-display text-base font-semibold text-ink">District outlook</h2>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          {outlook.map((district) => <button key={district.name} onClick={() => setSelectedName(district.name)} className={`rounded-xl border p-3 text-left transition hover:border-action ${selectedName === district.name ? "border-action ring-1 ring-action" : "border-line"}`}><div className="flex items-center justify-between gap-2"><span className="font-semibold text-ink">{district.name}</span><RiskBadge risk={district.risk} /></div><p className="mt-2 text-xs text-body-soft">{district.state} · {district.rainfallMm} mm / 3 days</p><p className="mt-1 text-[11px] text-body-soft">{district.source}</p></button>)}
+              {/* Hydro Metrics Grid */}
+              <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="rounded-xl border border-line bg-paper/50 p-4">
+                  <div className="flex items-center justify-between text-body-soft mb-1">
+                    <span className="text-xs font-bold uppercase tracking-wider">3-Day Rainfall</span>
+                    <CloudRain className="h-4 w-4 text-action" />
+                  </div>
+                  <div className="font-display text-2xl font-bold text-ink font-mono-data">
+                    {forecast.rainfallForecastMm} <span className="text-sm font-normal text-body-soft">mm</span>
+                  </div>
+                  <p className="text-[11px] text-body-soft mt-1">
+                    Threshold: &gt;{forecast.district.riskThresholds.high}mm for High Alert
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-line bg-paper/50 p-4">
+                  <div className="flex items-center justify-between text-body-soft mb-1">
+                    <span className="text-xs font-bold uppercase tracking-wider">River Flow Rate</span>
+                    <Waves className="h-4 w-4 text-action" />
+                  </div>
+                  <div className="font-display text-2xl font-bold text-ink font-mono-data">
+                    {forecast.riverDischargeM3s.toLocaleString()}{" "}
+                    <span className="text-sm font-normal text-body-soft">m³/s</span>
+                  </div>
+                  <p className="text-[11px] text-body-soft mt-1">
+                    Estimated discharge volume
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-line bg-paper/50 p-4">
+                  <div className="flex items-center justify-between text-body-soft mb-1">
+                    <span className="text-xs font-bold uppercase tracking-wider">Lead Time</span>
+                    <span className="text-xs font-bold text-action font-mono-data">48 - 72 hrs</span>
+                  </div>
+                  <div className="font-display text-2xl font-bold text-ink">
+                    Pre-Alert
+                  </div>
+                  <p className="text-[11px] text-body-soft mt-1">
+                    Advantage over sudden flash flooding
+                  </p>
+                </div>
+              </div>
+
+              {/* Catchment action link */}
+              <div className="mt-5 flex items-center justify-between pt-4 border-t border-line text-xs">
+                <Link
+                  to={`/donor?district=${encodeURIComponent(forecast.district.name)}`}
+                  className="inline-flex items-center gap-1.5 font-semibold text-action hover:underline"
+                >
+                  <HeartHandshake className="h-4 w-4" />
+                  <span>View open needs in {forecast.district.name} on Relief Map →</span>
+                </Link>
+
+                <Link
+                  to={`/satin?branch=${encodeURIComponent(forecast.district.linkedBranchId || "")}`}
+                  className="text-body-soft hover:text-ink font-medium"
+                >
+                  Branch recovery node →
+                </Link>
+              </div>
+            </div>
+
+            {/* Linked Relief Camps in District */}
+            <div className="rounded-2xl border border-line bg-white p-5 sm:p-6 shadow-xs">
+              <div className="flex items-center justify-between border-b border-line pb-3">
+                <div>
+                  <h3 className="font-display text-base font-bold text-ink">
+                    Relief Camps in {forecast.district.name} ({currentDistrictCamps.length})
+                  </h3>
+                  <p className="text-xs text-body-soft">Active staging and intake shelters in this flood zone</p>
+                </div>
+                <Link to={`/donor?district=${encodeURIComponent(forecast.district.name)}`} className="text-xs font-semibold text-action hover:underline">
+                  Filter on Donor Map →
+                </Link>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {currentDistrictCamps.map((c) => (
+                  <div key={c.id} className="rounded-xl border border-line bg-paper/40 p-4 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-xs sm:text-sm text-ink truncate">{c.name}</h4>
+                        <span className="inline-flex rounded-full bg-fulfilled-soft px-2 py-0.5 text-[10px] font-semibold text-fulfilled">
+                          Verified
+                        </span>
+                      </div>
+                      <p className="text-xs text-body-soft mt-1">Capacity: {c.capacity} individuals</p>
+                      <p className="text-xs text-body-soft">Branch: {c.branchName}</p>
+                    </div>
+
+                    <div className="mt-3 pt-2.5 border-t border-line/60 flex items-center justify-between text-xs">
+                      <span className="text-body-soft">📞 {c.phone}</span>
+                      <div className="flex items-center gap-2">
+                        <Link to={`/camp?camp=${c.id}`} className="font-semibold text-body hover:underline">
+                          Camp Ops
+                        </Link>
+                        <span>·</span>
+                        <Link to={`/donor?camp=${c.id}`} className="font-semibold text-action hover:underline">
+                          Pledge →
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Pre-positioning Panel */}
+          <div className="space-y-6">
+            <div className="rounded-2xl border border-action/40 bg-white p-5 sm:p-6 shadow-sm ring-1 ring-action/20">
+              <div className="flex items-center justify-between border-b border-line pb-3">
+                <div className="flex items-center gap-2">
+                  <PackagePlus className="h-5 w-5 text-action" />
+                  <h3 className="font-display text-base font-bold text-ink">Suggested Pre-positioning</h3>
+                </div>
+                <span className="rounded-lg bg-action/10 px-2 py-0.5 text-[11px] font-bold text-action">
+                  Automated
+                </span>
+              </div>
+
+              <p className="mt-2 text-xs text-body-soft">
+                Based on <strong className="text-ink">{forecast.riskTier} flood risk</strong> in {forecast.district.name}, our logistics algorithm auto-recommends staging these critical items:
+              </p>
+
+              <div className="mt-4 space-y-2.5">
+                {forecast.suggestedSupplies.map((s, idx) => (
+                  <div key={idx} className="rounded-xl border border-line bg-paper/50 p-3 flex items-start justify-between gap-2">
+                    <div>
+                      <span
+                        className={`inline-block rounded-md px-1.5 py-0.2 text-[10px] font-bold uppercase tracking-wider mb-1 ${
+                          s.priority === "Critical"
+                            ? "bg-critical-soft text-critical"
+                            : s.priority === "High"
+                            ? "bg-high-soft text-high"
+                            : "bg-paper-dim text-body-soft"
+                        }`}
+                      >
+                        {s.priority}
+                      </span>
+                      <h4 className="text-xs font-bold text-ink">{s.item}</h4>
+                      <p className="text-[11px] text-body-soft">{s.category}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-mono-data text-xs font-bold text-action">
+                        {s.suggestedQty} {s.unit}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {prepositionSuccess && (
+                <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <span>
+                      Successfully pre-positioned {prepositionSuccess.count} supply items to {prepositionSuccess.campName}!
+                    </span>
+                  </div>
+                  <Link
+                    to={`/donor?district=${encodeURIComponent(forecast.district.name)}`}
+                    className="inline-flex items-center gap-1 text-[11px] text-emerald-900 underline font-semibold"
+                  >
+                    <span>Inspect these pre-positioned requirements on the Donor Map →</span>
+                  </Link>
+                </div>
+              )}
+
+              <button
+                onClick={handlePreposition}
+                disabled={prepositioning || currentDistrictCamps.length === 0}
+                className="mt-5 w-full flex items-center justify-center gap-2 rounded-xl bg-action px-5 py-3 text-xs sm:text-sm font-semibold text-white shadow-xs transition hover:bg-action-hover disabled:opacity-50"
+              >
+                <PackagePlus className="h-4 w-4" />
+                <span>
+                  {prepositioning
+                    ? "Dispatching to Camps..."
+                    : `Pre-position to ${forecast.district.name} Camps`}
+                </span>
+              </button>
+
+              <div className="mt-3 flex items-center justify-between text-[11px] text-body-soft pt-2 border-t border-line/60">
+                <Link to="/camp" className="text-action hover:underline font-semibold">
+                  + Add New Camp to {forecast.district.name}
+                </Link>
+                <Link to="/impact" className="text-body-soft hover:underline">
+                  View Fulfillment %
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
-      </section>
-      <p className="mt-4 text-[11px] leading-5 text-body-soft">Risk is a transparent heuristic screening score, not a calibrated hydrological warning. High = ≥150 mm forecast rain or a combined rainfall and river-flow signal; Medium = elevated rainfall or river flow. Open-Meteo weather and GloFAS-derived river-discharge estimates can differ from local gauge conditions. Data: <a className="underline" href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a> and Copernicus GloFAS. Base map © OpenStreetMap contributors.</p>
-    </main>
+      )}
+    </div>
   );
 }

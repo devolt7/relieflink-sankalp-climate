@@ -32,7 +32,7 @@ export default function NeedsList({ rows, onSelectCamp, camps }) {
       {rows.map((row) => {
         const cfg = URGENCY[row.urgency];
         return (
-          <li key={row.id} className="relative">
+          <li key={`${row.campId}_${row.id}`} className="relative">
             <span className={`absolute left-0 top-0 h-full w-1 ${cfg.bg}`} aria-hidden />
             <button
               onClick={() => {

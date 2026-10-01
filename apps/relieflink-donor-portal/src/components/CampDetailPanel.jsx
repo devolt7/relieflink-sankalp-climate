@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import UrgencyBadge from "./UrgencyBadge";
 import StatusPill from "./StatusPill";
 import PledgeStatusPill from "./PledgeStatusPill";
@@ -51,7 +52,12 @@ export default function CampDetailPanel({ camp, onClose }) {
 
   if (!camp) return null;
 
-  const sortedNeeds = [...camp.needs].sort(
+  const rawNeeds = camp.needs || [];
+  const uniqueNeeds = rawNeeds.filter((n, idx, arr) => {
+    return arr.findIndex((x) => String(x.id) === String(n.id)) === idx;
+  });
+
+  const sortedNeeds = [...uniqueNeeds].sort(
     (a, b) => URGENCY_ORDER.indexOf(a.urgency) - URGENCY_ORDER.indexOf(b.urgency)
   );
 
@@ -72,6 +78,22 @@ export default function CampDetailPanel({ camp, onClose }) {
                   {camp.phone}
                 </a>
               )}
+            </div>
+
+            <div className="mt-2.5 flex items-center gap-2 text-xs">
+              <Link
+                to={`/climate?district=${encodeURIComponent(camp.district)}`}
+                className="text-[11px] font-medium text-action hover:underline"
+              >
+                Flood forecast →
+              </Link>
+              <span className="text-line-dark/20">·</span>
+              <Link
+                to={`/satin?branch=${encodeURIComponent(camp.branchId || "")}`}
+                className="text-[11px] font-medium text-action hover:underline"
+              >
+                Branch node →
+              </Link>
             </div>
           </div>
           <button

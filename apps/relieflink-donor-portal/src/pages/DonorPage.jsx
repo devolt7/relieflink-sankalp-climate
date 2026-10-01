@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import CampMap from "../components/CampMap";
 import Filters from "../components/Filters";
 import { DEFAULT_FILTERS } from "../lib/filters";
@@ -64,12 +64,16 @@ export default function DonorPage() {
     [rawCamps, pledgesByNeed]
   );
 
-  // Deep link from an alert: /?camp=<id> opens that camp's panel.
+  // Deep link from an alert or other page: /donor?camp=<id> or /donor?district=<name>
   useEffect(() => {
     const campParam = params.get("camp");
+    const districtParam = params.get("district");
     if (campParam) {
       setSelectedCampId(campParam);
       setFilters(DEFAULT_FILTERS); // make sure the camp isn't filtered off the map
+      setParams({}, { replace: true });
+    } else if (districtParam) {
+      setFilters((prev) => ({ ...prev, district: districtParam }));
       setParams({}, { replace: true });
     }
   }, [params, setParams]);
@@ -119,11 +123,27 @@ export default function DonorPage() {
         {pledgeError && (
           <p className="border-b border-line bg-moderate-soft px-4 py-2 text-xs text-moderate">{pledgeError.message}</p>
         )}
-        <div className="border-b border-line px-4 py-4">
-          <h1 className="font-display text-lg font-semibold text-ink">Where help is needed</h1>
-          <p className="mt-0.5 text-xs text-body-soft">
-            {loading ? "Loading needs…" : `${rows.length} open needs across ${filteredCamps.length} camps`}
+        <div className="border-b border-line px-4 py-3 sm:py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-1.5 text-xs text-body-soft mb-0.5">
+                <Link to="/" className="hover:text-ink transition">Home</Link>
+                <span>/</span>
+                <span className="text-ink font-semibold">Relief Camps</span>
+              </div>
+              <h1 className="font-display text-lg font-bold text-ink">Active Relief Needs</h1>
+            </div>
+            <Link
+              to="/my-pledges"
+              className="rounded-lg bg-paper px-2.5 py-1 text-xs font-semibold text-action hover:bg-paper-dim border border-line transition"
+            >
+              My Pledges →
+            </Link>
+          </div>
+          <p className="mt-1 text-xs text-body-soft">
+            {loading ? "Loading needs…" : `${rows.length} open supplies across ${filteredCamps.length} verified camps`}
           </p>
+
           <div className="mt-3">
             <Filters districts={districts} items={items} filters={filters} onChange={setFilters} />
           </div>

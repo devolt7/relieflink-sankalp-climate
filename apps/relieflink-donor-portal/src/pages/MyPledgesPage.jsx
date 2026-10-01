@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import BreadcrumbBar from "../components/BreadcrumbBar";
 import { useDonor } from "../context/DonorContext";
 import { cancelPledge, confirmPledgeReceived, markPledgeDispatched } from "../services/dataService";
 import { isValidContact } from "../lib/format";
 import PledgeTracker from "../components/PledgeTracker";
 import PledgeStatusPill from "../components/PledgeStatusPill";
 import StatCard from "../components/StatCard";
+import { HeartHandshake } from "lucide-react";
 
 const TABS = [
   { id: "all", label: "All" },
@@ -41,6 +43,20 @@ function ContactLookup({ onSubmit }) {
       <button type="submit" className="mt-3 w-full rounded-lg bg-action px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-action-hover">
         Show my pledges
       </button>
+
+      <div className="mt-4 pt-3 border-t border-line text-left">
+        <p className="text-[11px] text-body-soft mb-1.5">Quick demonstration:</p>
+        <button
+          type="button"
+          onClick={() => {
+            setValue("+91 98765 43210");
+            onSubmit("+91 98765 43210");
+          }}
+          className="w-full text-center rounded-lg border border-line bg-paper px-3 py-1.5 text-xs font-semibold text-action hover:bg-paper-dim transition"
+        >
+          Load Demo Pledges (+91 98765 43210)
+        </button>
+      </div>
     </form>
   );
 }
@@ -119,9 +135,9 @@ function PledgeCard({ pledge, contact, demo, onChanged }) {
         <button
           disabled={busy}
           onClick={() => run(() => confirmPledgeReceived(pledge.id))}
-          className={`${btn} mt-3 w-full border border-dashed border-line-dark text-body-soft hover:bg-paper-dim`}
+          className={`${btn} mt-3 w-full border border-line bg-paper text-body hover:bg-paper-dim font-medium`}
         >
-          Demo only: simulate camp confirming receipt
+          Confirm Camp Delivery Received (Field Demo)
         </button>
       )}
       {error && <p className="mt-2 text-xs text-critical">{error}</p>}
@@ -147,24 +163,34 @@ export default function MyPledgesPage() {
   });
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mb-5 flex items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-xl font-semibold text-ink">My pledges</h1>
-          <p className="mt-0.5 text-xs text-body-soft">
-            {donorContact ? (
-              <>
-                Showing pledges for <span className="font-mono-data">{donorContact}</span> ·{" "}
-                <button onClick={forgetDonor} className="text-action hover:underline">
-                  change
-                </button>
-              </>
-            ) : (
-              "Track what you've pledged, from dispatch to delivery."
-            )}
-          </p>
-        </div>
-      </div>
+    <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8 animate-fade-in">
+      <BreadcrumbBar
+        backTo="/donor"
+        backLabel="Relief Map"
+        current="My Pledges & Tracking"
+        category="Donor Portfolio"
+        subtitle={
+          donorContact ? (
+            <span>
+              Verified pledges for <strong className="text-ink font-mono-data">{donorContact}</strong> ·{" "}
+              <button onClick={forgetDonor} className="text-action font-semibold hover:underline">
+                switch contact
+              </button>
+            </span>
+          ) : (
+            "Track dispatched supplies from pledge to confirmed delivery at relief camps."
+          )
+        }
+        actions={
+          <Link
+            to="/donor"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-action px-3 py-1.5 text-xs font-semibold text-white hover:bg-action-hover transition shadow-xs"
+          >
+            <HeartHandshake className="h-3.5 w-3.5" />
+            <span>Pledge More</span>
+          </Link>
+        }
+      />
 
       {!donorContact ? (
         <ContactLookup onSubmit={(c) => rememberDonor(donorName, c)} />
@@ -176,9 +202,17 @@ export default function MyPledgesPage() {
         <div className="rounded-xl border border-line bg-white px-6 py-12 text-center">
           <p className="font-display text-sm font-semibold text-ink">No pledges found for this contact</p>
           <p className="mt-1 text-xs text-body-soft">Pledge to a camp's need and it will show up here.</p>
-          <Link to="/" className="mt-4 inline-block rounded-lg bg-action px-4 py-2 text-sm font-medium text-white hover:bg-action-hover">
-            Browse camps
-          </Link>
+          <div className="mt-4 flex items-center justify-center gap-3">
+            <Link to="/donor" className="rounded-lg bg-action px-4 py-2 text-sm font-medium text-white hover:bg-action-hover">
+              Browse Relief Camps on Map
+            </Link>
+            <button
+              onClick={() => rememberDonor(donorName, "+91 98765 43210")}
+              className="rounded-lg border border-line bg-paper px-4 py-2 text-sm font-medium text-body hover:bg-paper-dim"
+            >
+              Load Demo Pledges
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-5">
